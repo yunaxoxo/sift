@@ -1,0 +1,125 @@
+{
+  "description": "Ground truth for eval/benchmark.py. 'relevant' maps a file name in sample_docs/ to a grade: 2 = the note that answers the query, 1 = a note that covers the topic in passing. 'type' records why the query is in the set: keyword = shares rare terms with the note (BM25-friendly), natural = a question in ordinary words, paraphrase = deliberately avoids the note's vocabulary (embedding-friendly), cross = more than one note is relevant.",
+  "queries": [
+    {
+      "id": "q01",
+      "type": "natural",
+      "query": "how does the Linux scheduler decide which task runs next",
+      "relevant": { "process_scheduling.md": 2 }
+    },
+    {
+      "id": "q02",
+      "type": "paraphrase",
+      "query": "what happens when a program accesses memory that is not mapped yet",
+      "relevant": { "virtual_memory.md": 2 }
+    },
+    {
+      "id": "q03",
+      "type": "paraphrase",
+      "query": "computer becomes extremely slow when RAM is full and it keeps swapping",
+      "relevant": { "virtual_memory.md": 2 }
+    },
+    {
+      "id": "q04",
+      "type": "keyword",
+      "query": "mutex vs spinlock",
+      "relevant": { "concurrency_primitives.md": 2 }
+    },
+    {
+      "id": "q05",
+      "type": "cross",
+      "query": "conditions required for a deadlock to occur",
+      "relevant": { "concurrency_primitives.md": 2, "transaction_isolation.md": 1 }
+    },
+    {
+      "id": "q06",
+      "type": "natural",
+      "query": "why does TCP cut its sending rate in half after packet loss",
+      "relevant": { "tcp_congestion_control.md": 2 }
+    },
+    {
+      "id": "q07",
+      "type": "keyword",
+      "query": "BBR compared with CUBIC",
+      "relevant": { "tcp_congestion_control.md": 2 }
+    },
+    {
+      "id": "q08",
+      "type": "paraphrase",
+      "query": "translate a hostname into an IP address",
+      "relevant": { "dns_resolution.md": 2 }
+    },
+    {
+      "id": "q09",
+      "type": "natural",
+      "query": "how long does a resolver keep a cached answer",
+      "relevant": { "dns_resolution.md": 2 }
+    },
+    {
+      "id": "q10",
+      "type": "keyword",
+      "query": "forward secrecy ephemeral Diffie-Hellman",
+      "relevant": { "tls_handshake.md": 2 }
+    },
+    {
+      "id": "q11",
+      "type": "natural",
+      "query": "is 0-RTT early data vulnerable to replay",
+      "relevant": { "tls_handshake.md": 2 }
+    },
+    {
+      "id": "q12",
+      "type": "natural",
+      "query": "why are range queries efficient in a B+tree",
+      "relevant": { "btree_indexes.md": 2 }
+    },
+    {
+      "id": "q13",
+      "type": "paraphrase",
+      "query": "answer a query from the index alone without touching the table",
+      "relevant": { "btree_indexes.md": 2 }
+    },
+    {
+      "id": "q14",
+      "type": "keyword",
+      "query": "phantom read under repeatable read",
+      "relevant": { "transaction_isolation.md": 2 }
+    },
+    {
+      "id": "q15",
+      "type": "cross",
+      "query": "let readers proceed without blocking writers",
+      "relevant": { "transaction_isolation.md": 2, "write_ahead_logging.md": 1 }
+    },
+    {
+      "id": "q16",
+      "type": "cross",
+      "query": "how does a database recover committed transactions after a crash",
+      "relevant": { "write_ahead_logging.md": 2, "transaction_isolation.md": 1 }
+    },
+    {
+      "id": "q17",
+      "type": "keyword",
+      "query": "Adam bias correction",
+      "relevant": { "gradient_descent_optimizers.md": 2 }
+    },
+    {
+      "id": "q18",
+      "type": "cross",
+      "query": "learning rate warmup",
+      "relevant": { "gradient_descent_optimizers.md": 2, "transformer_attention.md": 1 }
+    },
+    {
+      "id": "q19",
+      "type": "natural",
+      "query": "why divide attention scores by the square root of the key dimension",
+      "relevant": { "transformer_attention.md": 2 }
+    },
+    {
+      "id": "q20",
+      "type": "natural",
+      "query": "combining keyword search with vector search",
+      "relevant": { "embeddings_vector_search.md": 2 }
+    }
+  ]
+}

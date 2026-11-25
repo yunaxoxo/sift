@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Web UI type-checks and builds
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Rust checks
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - name: Build extension and install
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -e '.[dev]'
+
+      - name: Python lint
+        run: .venv/bin/ruff check .
+
+      # Tests for unfinished stubs skip themselves, so this is green on the
+      # scaffold and becomes a real gate as you implement each piece.
+      - name: Tests
+        run: .venv/bin/pytest -ra
+
+      # Exit 3 = a hand-written stub is still empty: reported, not failed.
+      # Once everything is implemented this is a strict regression gate against
+      # eval/baseline.json (record it with --embedder hash --update-baseline).
+      - name: Benchmark regression gate (hash embedder, deterministic)
+        run: |
+          set +e
+          .venv/bin/python eval/benchmark.py --embedder hash --check
+          code=$?
+          if [ "$code" -eq 3 ]; then
+            echo "::notice::benchmark skipped: stubs not implemented yet"
+            exit 0
+          fi
+          exit $code

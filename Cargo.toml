@@ -1,0 +1,16 @@
+# Workspace root. The only member is the PyO3 extension crate; keeping a
+# workspace here means `cargo build`, `cargo test`, `cargo clippy` and
+# rust-analyzer all work from the repository root, and build artifacts land in
+# a single top-level `target/` directory.
+[workspace]
+members = ["rust_core"]
+resolver = "3"
+
+# Profiles must live in the workspace root (cargo ignores them in members).
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+# NOTE: do NOT set `panic = "abort"`. PyO3 relies on unwinding to turn a Rust
+# panic (including `todo!()`) into a Python `PanicException` instead of killing
+# the interpreter.

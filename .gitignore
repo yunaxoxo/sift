@@ -1,0 +1,34 @@
+# Rust
+/target/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+/dist/
+/build/
+
+# Compiled extension that `maturin develop` drops into the package
+sift/_rust_core*.so
+sift/_rust_core*.pyd
+sift/_rust_core*.dylib
+
+# sift index databases (SQLite + WAL sidecar files)
+.sift/
+*.db
+*.db-wal
+*.db-shm
+
+# Benchmark output. eval/baseline.json IS committed; per-run results are not.
+eval/results/
+
+# Web UI sources live in web/; only the build output (sift/ui/static) ships.
+web/node_modules/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

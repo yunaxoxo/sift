@@ -1,0 +1,21 @@
+[package]
+name = "rust_core"
+version = "0.1.0"
+edition = "2024"
+description = "Native file walker + heading-aware Markdown chunker for sift"
+publish = false
+
+[lib]
+# The compiled library is imported from Python as `sift._rust_core`.
+# This name MUST match:
+#   * the `#[pymodule]` function name in src/lib.rs
+#   * the last segment of `module-name` in ../pyproject.toml ([tool.maturin])
+name = "_rust_core"
+# cdylib -> the shared library Python loads.
+# rlib   -> lets `cargo test` and doc-tests link the crate as a normal Rust lib.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# abi3-py310: build against CPython's stable ABI, so one wheel works on every
+# Python >= 3.10 instead of one wheel per minor version.
+pyo3 = { version = "0.30", features = ["abi3-py310"] }

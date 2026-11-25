@@ -1,0 +1,65 @@
+[build-system]
+# maturin compiles rust_core/ and drops the shared library into sift/ as
+# sift/_rust_core.*.so. >= 1.9.4 is required because it sets
+# PYO3_BUILD_EXTENSION_MODULE for us (the old `extension-module` cargo feature
+# is deprecated in PyO3 and breaks `cargo test` on macOS).
+requires = ["maturin>=1.9.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "sift"
+description = "Local-first hybrid search (BM25 + embeddings + RRF) for Markdown notes and codebases"
+readme = "README.md"
+requires-python = ">=3.10"
+# Single source of truth for the version: rust_core/Cargo.toml.
+dynamic = ["version"]
+keywords = ["search", "bm25", "embeddings", "rrf", "pyo3", "sqlite"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Text Processing :: Indexing",
+]
+# Core install stays small on purpose: numpy only. The embedding model stack
+# (PyTorch or ONNX Runtime) is an opt-in extra.
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+# Local embedding inference with PyTorch.
+embeddings = ["sentence-transformers>=3.0"]
+# Local embedding inference with ONNX Runtime (smaller, faster cold start).
+onnx = ["sentence-transformers[onnx]>=3.2"]
+dev = ["maturin>=1.9.4,<2.0", "pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+sift = "sift.cli:main"
+
+[tool.maturin]
+manifest-path = "rust_core/Cargo.toml"
+# Import path of the compiled module. The last segment must equal `[lib] name`
+# in rust_core/Cargo.toml and the `#[pymodule]` name in rust_core/src/lib.rs.
+module-name = "sift._rust_core"
+# The Python package (sift/) sits next to this file.
+python-source = "."
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Lets tests `import ir_metrics` / `import benchmark` from eval/.
+pythonpath = ["eval"]
+# -ra prints the reason for every skipped test: that list is your to-do list
+# while the hand-written stubs are still empty.
+addopts = "-ra"
+markers = ["native_chunker: run against the real Rust chunker instead of the test double"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pyright]
+# Point editors (Pylance / Pyright) at the project virtualenv and at the two
+# directories that are imported as top-level modules by the tests.
+venvPath = "."
+venv = ".venv"
+extraPaths = ["eval", "tests"]
