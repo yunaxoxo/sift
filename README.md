@@ -4,8 +4,8 @@
 
 sift indexes your own Markdown notes, technical docs and project repositories, and answers with Okapi BM25 and dense
 embeddings on ONNX Runtime, merged by Reciprocal Rank Fusion over chunks cut by a Rust (PyO3) heading-aware chunker.
-It is designed to be used every day from the terminal and the browser and to explain every ranking it makes, and
-nothing leaves the machine.
+It is designed to be used every day from the terminal and the browser and to explain every ranking it makes
+(specified in §11 and §13; not yet built), and nothing leaves the machine.
 
 ```
 index    Markdown corpus ─▶ Rust/PyO3 chunker ─▶ tokens + ONNX embeddings ─▶ SQLite

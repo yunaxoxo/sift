@@ -1,12 +1,3 @@
-## Quick Orientation Guide
-
-Read `README.md`, `CLAUDE.md`, `IMPLEMENTATION_GUIDE.md`, and inspect `rust_core/src/lib.rs`, `sift/`, and `eval/`.
-
-Do NOT modify any files or write any backend implementation code. Give me a clear, concise orientation briefing covering:
-1. **What `sift` Is & End-to-End Architecture:** How the Rust/PyO3 Markdown chunker, Okapi BM25 lexical index, local ONNX dense embeddings, Reciprocal Rank Fusion (`k=60`), FastAPI server, and frozen `ui/` reader fit together.
-2. **Current Repo State:** Confirm what is frozen (`ui/` and `sample_docs/`) vs. the exact modules and `todo!()` / `NotImplementedError` stubs in `rust_core/src/lib.rs`, `sift/*.py`, and `eval/benchmark.py` that I need to implement myself.
-3. **My Immediate First Step (Phase 1 — `rust_core/src/lib.rs`):** The exact PyO3 functions and `Chunk` invariants I need to implement first (heading breadcrumbs, atomic fenced code blocks, exact 1-indexed line spans, GIL release), and the exact `maturin develop` / `cargo test` / `pytest` commands to run as I build it by hand.
-
 # sift: Build Curriculum and Implementation Specification
 
 This document has two parts.
@@ -17,7 +8,7 @@ This document has two parts.
   Rust/Python boundary, and how to know the result is good. It asks questions
   and names pitfalls. It contains no solutions: no code and no step-by-step
   algorithm.
-* **Part B, the specification (§1 to §13),** is the contract the stubs and the
+* **Part B, the specification (§1 to §16),** is the contract the stubs and the
   tests cite. It states definitions, input domains, error conditions and
   invariants, and says nothing about how to compute them. Its section numbers
   are referenced from the source tree and are stable.
@@ -1582,7 +1573,8 @@ Every hit carries a `line`: the first source line of the chunk that contains a w
    * `heading` is the last breadcrumb entry, or the file name when there is none.
    * The snippet is one line of at most 160 characters, newlines and tabs collapsed to single spaces.
    * A hit whose path contains a newline is omitted, with a warning on standard error. A colon inside a path is
-     left as is: Vim's default `errorformat` and `fzf --delimiter :` take the first two numeric fields.
+     left as is, which makes the line ambiguous: `fzf --delimiter :` splits at every colon, so `{1}` and `{2}` no
+     longer name the file and the line. Use `jsonl` for a corpus whose paths contain colons.
 3. **`jsonl`.** One JSON object per line, one line per hit, in rank order, for `jq`. Keys, in this order: `rank`,
    `collection`, `path`, `line`, `start_line`, `end_line`, `heading_context`, `score`, `lexical_rank`,
    `lexical_score`, `semantic_rank`, `semantic_score`, `snippet`, and with `--explain`, `provenance` (§13). Compact
