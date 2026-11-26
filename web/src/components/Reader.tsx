@@ -3,7 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import { api } from "../api";
 import { lineSpan } from "../lib/format";
 import { parseMarkdown, renderBlock } from "../lib/markdown";
-import { sectionOf } from "../lib/text";
+import { sectionOf, type Terms } from "../lib/text";
 import type { Hit, Mode } from "../types";
 import { Metrics } from "./Results";
 
@@ -95,7 +95,9 @@ export function Reader({ hit, mode, was, found, position, onStep, terms, visible
     blocks.forEach((block, i) => {
       // Word forms the analyzer matched (E.2) are marked too, but only in the lines they were found in.
       const forms = (hit.match_spans ?? []).filter((m) => block.end >= m.start_line && block.start <= m.end_line).map((m) => m.text.toLowerCase());
-      const node = <Fragment key={i}>{renderBlock(block, forms.length ? [...terms, ...forms] : terms, 1)}</Fragment>;
+      // A typed word that is also a matched form stays a typed word.
+      const marked: Terms = forms.length ? Object.assign([...terms, ...forms], { forms: new Set(forms.filter((f) => !terms.includes(f))) }) : terms;
+      const node = <Fragment key={i}>{renderBlock(block, marked, 1)}</Fragment>;
       if (block.end >= hit.start_line && block.start <= hit.end_line) run.push(node);
       else {
         flush();

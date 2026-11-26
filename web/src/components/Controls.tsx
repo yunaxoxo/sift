@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { fmtMs, MODE_ENGINE, MODE_LABEL } from "../lib/format";
 import { rovingKeys } from "../lib/roving";
 import type { IndexRun, Mode, TopK } from "../types";
@@ -66,7 +66,7 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
     { label: "Embed", value: mode === "lexical" ? null : timings?.embed_ms },
     { label: "BM25", value: mode === "semantic" ? null : timings?.lexical_ms },
     { label: "Cosine", value: mode === "lexical" ? null : timings?.vector_ms },
-    { label: "RRF Fusion", value: mode === "hybrid" ? timings?.fusion_ms : null },
+    { label: "RRF", value: mode === "hybrid" ? timings?.fusion_ms : null },
   ];
 
   const [samplesOpen, setSamplesOpen] = useState(false);
@@ -103,6 +103,14 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
     );
 
   const [open, setOpen] = useState(false);
+  const disclosure = useRef<HTMLButtonElement>(null);
+  // On a phone the open panel hides the results: a tapped choice folds it. Keyboard clicks (detail 0) leave it open.
+  const fold = (e: { detail: number }) => {
+    if (e.detail > 0 && matchMedia("(max-width: 767px)").matches) {
+      setOpen(false);
+      disclosure.current?.focus({ preventScroll: true });
+    }
+  };
   const [allSources, setAllSources] = useState(false);
 
   // Grow the field to fit its text: wrapped lines, never a scrollbar for a normal query. Re-fit whenever
@@ -192,7 +200,7 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
 
       {fixture && !hasResults && samples}
 
-      <button type="button" className="disclosure" aria-expanded={open} aria-controls="filters-panel" onClick={() => setOpen((v) => !v)}>
+      <button ref={disclosure} type="button" className="disclosure" aria-expanded={open} aria-controls="filters-panel" onClick={() => setOpen((v) => !v)}>
         <span>Options</span>
         <span className="muted">
           {MODE_LABEL[mode]} <span aria-hidden="true">·</span> {open ? "Hide" : "Show"}
@@ -207,7 +215,7 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
           <h2 id="g-collection">Collection</h2>
           <div role="radiogroup" aria-labelledby="g-collection" className="options options-stack" onKeyDown={rovingKeys("[role=radio]")}>
             {[null, ...collections].map((name) => (
-              <button key={name ?? ""} type="button" role="radio" aria-checked={collection === name} tabIndex={collection === name ? 0 : -1} onClick={() => onCollection(name)}>
+              <button key={name ?? ""} type="button" role="radio" aria-checked={collection === name} tabIndex={collection === name ? 0 : -1} onClick={(e) => { onCollection(name); fold(e); }}>
                 <span translate={name ? "no" : undefined}>{name ?? "All collections"}</span>
               </button>
             ))}
@@ -219,7 +227,7 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
         <h2 id="g-mode">Ranking</h2>
         <div role="radiogroup" aria-labelledby="g-mode" className="options options-stack" onKeyDown={rovingKeys("[role=radio]")}>
           {MODES.map((m) => (
-            <button key={m} type="button" role="radio" aria-checked={mode === m} tabIndex={mode === m ? 0 : -1} onClick={() => onMode(m)}>
+            <button key={m} type="button" role="radio" aria-checked={mode === m} tabIndex={mode === m ? 0 : -1} onClick={(e) => { onMode(m); fold(e); }}>
               <span>{MODE_LABEL[m]}</span>
               <span className="engine">{MODE_ENGINE[m]}</span>
             </button>
@@ -231,7 +239,7 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
         <h2 id="g-k">Show</h2>
         <div role="radiogroup" aria-labelledby="g-k" className="options options-row" onKeyDown={rovingKeys("[role=radio]")}>
           {KS.map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={k === n} tabIndex={k === n ? 0 : -1} onClick={() => onK(n)}>
+            <button key={n} type="button" role="radio" aria-checked={k === n} tabIndex={k === n ? 0 : -1} onClick={(e) => { onK(n); fold(e); }}>
               <span className="num">{n}</span>
             </button>
           ))}

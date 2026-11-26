@@ -97,17 +97,18 @@ export function evidence(hit: Hit, terms: string[], mode: Mode, query: string, s
   return [words, distinct, origin].filter(Boolean).join(" · ") || null;
 }
 
-/**
- * §13.5 in one line: each ranker's position, where fusion put it and by how much it moved, then each word's
- * share of the BM25 score. The fused rank is said only when it is the number the row shows: a Source
- * filter renumbers the rows, and the line must stay true of what is on screen.
- */
-export function why(p: Provenance, mode: Mode, shown: number): string {
-  const lists = [p.lexical.rank != null && `BM25 #${p.lexical.rank}`, p.semantic.rank != null && `Dense #${p.semantic.rank}`].filter(Boolean).join(" + ");
-  const lifts = [p.lift.lexical, p.lift.semantic].flatMap((n) => (n == null ? [] : [n > 0 ? `+${n}` : String(n)])).join(", ");
-  const fused = mode === "hybrid" && p.fusion.rank === shown ? ` → Hybrid #${p.fusion.rank}${lifts ? ` (${lifts})` : ""}` : "";
-  const terms = p.lexical.terms.map((t) => (t.tf ? `${t.term} ${fmtBm25(t.contribution)}` : `${t.term} 0 (absent)`));
-  return [lists + fused, ...terms].filter(Boolean).join(" · ");
+/** Where each ranker put the hit, in the searcher's words: "#3 by words · #1 by meaning". */
+export const byRanker = (hit: Hit) =>
+  [hit.lexical_rank != null && `#${hit.lexical_rank} by words`, hit.semantic_rank != null && `#${hit.semantic_rank} by meaning`].filter(Boolean).join(" · ");
+
+/** §13 detail for the reader's Scores: how far fusion moved the hit from each list, and each word's BM25 share. */
+function explained(p: Provenance, mode: Mode): string[] {
+  const shift = (n: number | null, list: string) =>
+    n == null ? null : n === 0 ? `level with its ${list} rank` : `${Math.abs(n)} ${n > 0 ? "up" : "down"} from its ${list} rank`;
+  const moved = [shift(p.lift.lexical, "words"), shift(p.lift.semantic, "meaning")].filter(Boolean).join(" · ");
+  // tf counts the passage's analysed text only, so a word that sits in a heading can still read 0 here.
+  const terms = p.lexical.terms.map((t) => (t.tf ? `${t.term} ${fmtBm25(t.contribution)}` : `${t.term} 0 (not in the passage text)`)).join(" · ");
+  return [mode === "hybrid" && moved && `Fusion: ${moved}`, terms && `BM25 by word: ${terms}`].filter((l): l is string => !!l);
 }
 
 /** The engine's own numbers: kept for the reader, out of the result list. */
@@ -116,22 +117,26 @@ export function Metrics({ hit, mode, was }: { hit: Hit; mode: Mode; was?: number
     mode === "lexical"
       ? [["BM25", fmtBm25(hit.lexical_score ?? hit.score)]]
       : mode === "semantic"
-        ? [["Semantic", fmtSemantic(hit.semantic_score ?? hit.score)]]
+        ? [["Cosine", fmtSemantic(hit.semantic_score ?? hit.score)]]
         : [
             ["BM25", fmtBm25(hit.lexical_score)],
-            ["Semantic", fmtSemantic(hit.semantic_score)],
+            ["Cosine", fmtSemantic(hit.semantic_score)],
             ["RRF", fmtRrf(hit.score)],
           ];
   // Fusion works on positions, not scores, so the positions come first.
   const ranks = [
-    hit.lexical_rank != null && `#${hit.lexical_rank} by words`,
-    hit.semantic_rank != null && `#${hit.semantic_rank} by meaning`,
+    byRanker(hit),
     // Words and Meaning are compared with Words + meaning here, not in the list.
     mode !== "hybrid" && was != null && (was === "new" ? "outside the Words + meaning top 50" : `was #${was} in Words + meaning`),
   ].filter(Boolean);
   return (
     <>
       {ranks.length > 0 && <p className="ranks num">{ranks.join(" · ")}</p>}
+      {hit.provenance && explained(hit.provenance, mode).map((line) => (
+        <p key={line} className="ranks num">
+          {line}
+        </p>
+      ))}
       <p className="metrics num">
         {items.map(([label, value]) => (
           <span key={label}>
@@ -143,7 +148,6 @@ export function Metrics({ hit, mode, was }: { hit: Hit; mode: Mode; was?: number
   );
 }
 
-/** A few plain lines around the first of the searcher's words; tables and code are left to the reader. */
 /** "Try a, b, c.": the sample searches that have recorded results, as links. */
 function Samples({ examples, onExample }: { examples: string[]; onExample: (query: string) => void }) {
   return (
@@ -162,6 +166,7 @@ function Samples({ examples, onExample }: { examples: string[]; onExample: (quer
   );
 }
 
+/** A few plain lines around the first of the searcher's words; tables and code are left to the reader. */
 const Excerpt = memo(function Excerpt({ hit, terms }: { hit: Hit; terms: string[] }) {
   const text = useMemo(() => snippet(hit.text, terms), [hit.text, terms]);
   if (text === null) {
@@ -300,7 +305,8 @@ export function Results({ result, query, loading, error, terms, activeIndex, onA
               className="result"
               aria-current={active || undefined}
               data-active={active || undefined}
-              onMouseMove={() => !active && onActive(index)}
+              // A keyboard-focused title keeps the active row: the pointer passing over must not move it elsewhere.
+              onMouseMove={() => !active && !document.activeElement?.matches(".title:focus-visible") && onActive(index)}
               // The row is a mouse convenience, not the control: the title button inside it is the
               // keyboard and screen-reader path to the same action, so nothing is lost without a
               // pointer. A stretched link would make excerpt text unselectable.
@@ -324,7 +330,7 @@ export function Results({ result, query, loading, error, terms, activeIndex, onA
                         onOpen(hit, e.currentTarget);
                       }}
                       onFocus={() => !active && onActive(index)}
-                      aria-describedby={`${found ? `ev-${hit.chunk_id} ` : ""}where-${hit.chunk_id}`}
+                      aria-describedby={`${found ? `ev-${hit.chunk_id} ` : ""}${hit.provenance && byRanker(hit) ? `by-${hit.chunk_id} ` : ""}where-${hit.chunk_id}`}
                     >
                       {title || hit.file_path.split("/").at(-1)}
                     </button>
@@ -356,7 +362,11 @@ export function Results({ result, query, loading, error, terms, activeIndex, onA
                   )}
                   <span>{lineSpan(hit.start_line, hit.end_line)}</span>
                 </p>
-                {hit.provenance && <p className="where">{why(hit.provenance, result.mode, hit.rank)}</p>}
+                {hit.provenance && byRanker(hit) && (
+                  <p className="where" id={`by-${hit.chunk_id}`}>
+                    {byRanker(hit)}
+                  </p>
+                )}
                 <Excerpt hit={hit} terms={terms} />
               </div>
             </li>

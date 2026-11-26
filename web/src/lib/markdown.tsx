@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { markClass, splitMatches } from "./text";
+import { markClass, splitMatches, type Terms } from "./text";
 
 // A small, safe Markdown renderer. It builds React elements directly (no HTML
 // strings) and keeps each block's source line range, so the reader can mark
@@ -227,10 +227,16 @@ const INLINE = new RegExp(
   "g",
 );
 
-function plain(text: string, terms: string[], key = ((n) => () => n++)(0)): ReactNode[] {
+function plain(text: string, terms: Terms, key = ((n) => () => n++)(0)): ReactNode[] {
   if (!terms.length) return [text];
   return splitMatches(text, terms).map((part) =>
-    part.hit ? <mark key={key()} className={markClass(part)}>{part.text}</mark> : <Fragment key={key()}>{part.text}</Fragment>,
+    part.hit ? (
+      <mark key={key()} className={markClass(part)} data-form={terms.forms?.has(part.text.toLowerCase()) || undefined}>
+        {part.text}
+      </mark>
+    ) : (
+      <Fragment key={key()}>{part.text}</Fragment>
+    ),
   );
 }
 

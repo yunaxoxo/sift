@@ -10,6 +10,8 @@ interface Props {
   source: "live" | "fixture" | null;
   onHelp: () => void;
   helpOpen: boolean;
+  /** A chosen collection: the counts here still cover every collection, so they say so. */
+  collection: string | null;
 }
 
 const VIEWS: { id: View; label: string }[] = [
@@ -17,7 +19,7 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "bench", label: "Benchmarks" },
 ];
 
-export function Topbar({ corpus, view, onView, source, onHelp, helpOpen }: Props) {
+export function Topbar({ corpus, view, onView, source, onHelp, helpOpen, collection }: Props) {
   return (
     <header className="topbar">
       <div className="topbar-id">
@@ -32,6 +34,7 @@ export function Topbar({ corpus, view, onView, source, onHelp, helpOpen }: Props
             <>
               <span className="num">{fmtInt(corpus.files)}</span> files <span aria-hidden="true">·</span>{" "}
               <span className="num">{fmtInt(corpus.chunks)}</span> passages<span className="long"> indexed</span>
+              {collection && " across all collections"}
             </>
           ) : (
             "Reading the index"

@@ -352,7 +352,7 @@ export function App() {
         Skip to results
       </a>
       <div className="workspace" inert={reading !== null}>
-        <Topbar corpus={status?.corpus ?? null} view={view} onView={setView} source={source} onHelp={toggleHelp} helpOpen={help && helpVisible} />
+        <Topbar corpus={status?.corpus ?? null} view={view} onView={setView} source={source} onHelp={toggleHelp} helpOpen={help && helpVisible} collection={collection} />
         <main id="main" tabIndex={-1}>
           <p className="visually-hidden" role="status">
             {loading
@@ -430,7 +430,7 @@ export function App() {
           </div>
         </footer>
       </div>
-      {help && <Keymap visible={helpVisible} onClose={closeHelp} />}
+      {help && <Keymap filters={status?.filters === true} visible={helpVisible} onClose={closeHelp} />}
       {reading && <Reader hit={reading} mode={result?.mode ?? mode} was={baselineRanks ? (baselineRanks.get(reading.chunk_id) ?? "new") : null} found={evidence(reading, terms, result?.mode ?? mode, pool?.query ?? query, hits)} position={{ at: hits.findIndex((h) => h.chunk_id === reading.chunk_id), of: hits.length }} onStep={step} terms={terms} visible={readerVisible} onClose={close} />}
     </div>
   );

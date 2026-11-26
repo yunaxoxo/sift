@@ -169,8 +169,8 @@ JetBrains Mono for measurements, all bundled, so the page makes no network reque
   opens the shortcuts.
 - **Benchmarks.** Recall@3, MRR, NDCG@5 and p50 / p95 latency per mode.
 - **Ready for the daily-driver backend (guide §13.7).** A Collection choice when the server reports two or more,
-  filter syntax (`path:`, `tag:`, `heading:`, `lang:`) in the `?` sheet, a one-line "why this ranked" under each result
-  when hits carry `provenance`, and highlights for matched word forms when they carry `match_spans`. None appears until
+  filter syntax (`path:`, `tag:`, `heading:`, `lang:`) in the `?` sheet once the server reports `filters`, where each
+  ranker put a result when hits carry `provenance` (the detail in the reader's Scores), and highlights for matched word forms when they carry `match_spans`. None appears until
   the server sends it.
 
 To change it: `cd web && npm run dev` (proxies `/api` to a running `sift ui`), then `npm run build`.

@@ -1762,12 +1762,13 @@ placeholder values: when it cannot be computed, leave it out.
 |---|---|---|
 | `explain=1`, `c=<name>` | `GET /api/search` parameters; the UI always sends `explain=1`, and sends `c` when a collection is chosen | today's server ignores both |
 | `collections` | `GET /api/status`: the registry names of §10.2 | a Collection choice in Options, shown only for two or more |
+| `filters` | `GET /api/status`: `true` once §12 parsing runs on `GET /api/search` | the `?` sheet lists the filter syntax; absent or `false`, it says nothing about filters |
 | `collection` | each hit | carried; not yet displayed |
-| `provenance` | each hit, exactly the §13.1 payload | one muted line under the row's location, the §13.5 rendering joined by `·` |
+| `provenance` | each hit, exactly the §13.1 payload | the row adds where each ranker put it ("#3 by words · #1 by meaning"); the reader's Scores add how far fusion moved it and each word's BM25 share |
 | `match_spans` | each hit: `start_line`, `end_line` (1-based, inclusive) and `text`, the matched word form (E.2) | marked like a query word, but only inside those lines |
 
-1. The provenance line names a fused rank only when it equals the number the row shows. A Source filter renumbers
-   the rows, and the line must stay true of what is on screen.
+1. The list speaks in the searcher's words; BM25 shares and fusion moves stay in the reader's Scores. A word with
+   `tf` $0$ reads "not in the passage text", because the evidence line above it also counts headings.
 2. Filter tokens (§12.1) are never highlighted. The UI removes them before choosing words to mark, by the grammar of
    §12.1, so `path:os/ tlb` marks only `tlb`.
 3. Which unit `match_spans` uses inside a line is yours to choose in E.2. The UI matches `text` as a whole word in

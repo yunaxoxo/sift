@@ -22,6 +22,9 @@ export function sectionOf(context: string): { title: string; parents: string[] }
   return { title: parts.at(-1) ?? "", parents: parts.slice(0, -1) };
 }
 
+/** Query words, plus word forms the analyzer matched (E.2), which the reader marks differently. */
+export type Terms = string[] & { forms?: ReadonlySet<string> };
+
 /** Whole-word, case-insensitive pattern for any of `terms`, longest first. */
 export function termPattern(terms: string[]): RegExp {
   const escaped = [...terms].sort((a, b) => b.length - a.length).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));

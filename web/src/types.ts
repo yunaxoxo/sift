@@ -23,6 +23,8 @@ export interface Status {
   examples: string[];
   /** Collection names from the registry (§10.2); absent until the workspace store exists. */
   collections?: string[];
+  /** True once the server parses §12 filters; until then the UI does not teach them. */
+  filters?: boolean;
 }
 
 /** One query term's share of the BM25 score (§13.1). */

@@ -9,7 +9,7 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { keys: ["/"], text: "Focus search input" },
+  { keys: ["/"], text: "Go to the search box" },
   { keys: ["↑", "↓"], either: true, text: "Move through search results" },
   { keys: ["Enter"], text: "Open the selected note" },
   { keys: ["J"], text: "Next highlighted match", note: "in an open note; wraps around" },
@@ -30,13 +30,15 @@ const FILTERS: [string, string][] = [
 ];
 
 interface Props {
+  /** The server parses §12 filters; without it the sheet says nothing about them. */
+  filters: boolean;
   /** False while the sheet is fading out. */
   visible: boolean;
   onClose: () => void;
 }
 
 /** A printed index of the keyboard: a quiet sheet, not a modal. The page behind stays live. */
-export function Keymap({ visible, onClose }: Props) {
+export function Keymap({ filters, visible, onClose }: Props) {
   const sheet = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -79,17 +81,21 @@ export function Keymap({ visible, onClose }: Props) {
           </div>
         ))}
       </dl>
-      <h3 className="group-title">Search filters</h3>
-      <dl>
-        {FILTERS.map(([token, text]) => (
-          <div key={token}>
-            <dt>
-              <code translate="no">{token}</code>
-            </dt>
-            <dd>{text}</dd>
-          </div>
-        ))}
-      </dl>
+      {filters && (
+        <>
+          <h3 className="group-title">Search filters</h3>
+          <dl>
+            {FILTERS.map(([token, text]) => (
+              <div key={token}>
+                <dt>
+                  <code translate="no">{token}</code>
+                </dt>
+                <dd>{text}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
     </section>
   );
 }

@@ -26,6 +26,6 @@ export const MODE_LABEL = {
 /** The engine underneath each mode: shown second, for the people who want it. */
 export const MODE_ENGINE = {
   hybrid: "Hybrid RRF",
-  semantic: "Semantic vector",
+  semantic: "Cosine",
   lexical: "BM25",
 } as const;

@@ -203,7 +203,7 @@ export function Benchmarks({ bench, error, load }: Props) {
                   <span className="engine">{MODE_ENGINE[mode]}</span>
                 </th>
                 {COLUMNS.map((c) => (
-                  <td key={c.key} className="r num" data-best={best.get(c.key) === c.format(m ? c.value(m) : null) || undefined}>
+                  <td key={c.key} className="r num" data-label={c.label} data-best={best.get(c.key) === c.format(m ? c.value(m) : null) || undefined}>
                     {c.format(m ? c.value(m) : null)}
                   </td>
                 ))}

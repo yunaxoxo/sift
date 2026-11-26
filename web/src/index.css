@@ -112,6 +112,8 @@ mark {
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 strong mark { font-weight: inherit; }
+/* A form of your word the analyzer matched (E.2), not the word you typed: the highlight with a rule beneath. */
+mark[data-form] { font-weight: 400; text-decoration: underline 1px var(--muted); text-underline-offset: 3px; }
 /* Flush against a hyphen: "page-table" reads as one word, not a chip with a seam. */
 mark.tight-end { padding-right: 0; margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
 mark.tight-start { padding-left: 0; margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
@@ -304,9 +306,9 @@ main:focus-visible { outline: none; }
 /* The engine behind a plain mode name: second, smaller, never bold. */
 .engine { display: block; font: 400 0.6875rem/1.4 var(--mono); color: var(--muted); }
 .options button[aria-checked="true"] > span:first-child { background-size: 100% 1px; }
-/* Keyboard focus is the same rule as "selected", drawn heavier: no box around a filter, and never invisible. */
+/* Keyboard focus is a heavier rule in the accent: no box around a filter, and never mistaken for "selected". */
 .options button:focus-visible { outline: none; color: var(--ink); }
-.options button:focus-visible > span:first-child { background-size: 100% 2px; }
+.options button:focus-visible > span:first-child { background-image: linear-gradient(var(--forest), var(--forest)); background-size: 100% 2px; }
 .options button:active { transform: scale(0.97); }
 
 .sources { align-items: stretch; gap: 0; }
@@ -374,7 +376,7 @@ main:focus-visible { outline: none; }
 .result[data-active] .title { text-decoration-color: var(--ink); }
 /* Keyboard and pointer state is carried by the rule beside the rank and the underlined title, not by a box. */
 .title:focus, .title:focus-visible { outline: none; }
-.title:focus-visible { text-decoration-color: var(--ink); text-decoration-thickness: 2px; }
+.title:focus-visible { text-decoration-color: var(--forest); text-decoration-thickness: 2px; }
 
 .where { display: flex; flex-wrap: wrap; gap: 0 16px; margin-top: 6px; font: 400 0.75rem/1.5 var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); }
 .path { overflow-wrap: break-word; } /* <wbr> after each "/" is where it breaks; a too-long name still wraps */
@@ -483,10 +485,12 @@ main:focus-visible { outline: none; }
   background: var(--sheet); border-bottom: 1px solid var(--hairline);
 }
 /* What you opened, first: the section title in the reading face, then the note's file name. */
-.reader header .where { display: flex; flex-wrap: nowrap; align-items: baseline; flex: 1 1 0; min-width: 0; gap: 0 12px; margin: 0; white-space: nowrap; }
+/* The title takes its full width first; the file name gets what is left, and is cut before the title is. */
+.reader header .where { display: grid; grid-template-columns: minmax(0, max-content) minmax(6ch, 1fr) auto; align-items: baseline; flex: 1 1 0; min-width: 0; gap: 0 12px; margin: 0; white-space: nowrap; }
 .reader header .doc-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 500 1rem/1.3 var(--serif); color: var(--ink); }
-.reader header .of { flex: none; margin-left: auto; padding-left: 12px; font: 400 0.75rem/1.4 var(--mono); color: var(--muted); }
-.reader header .file { flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; font: 400 0.75rem/1.4 var(--mono); color: var(--meta); }
+.reader header .of { justify-self: end; padding-left: 12px; font: 400 0.75rem/1.4 var(--mono); color: var(--muted); }
+.reader header .of-word { display: none; } /* "2 of 5": the section title keeps the room; the live region still says "Result" */
+.reader header .file { overflow: hidden; text-overflow: ellipsis; font: 400 0.75rem/1.4 var(--mono); color: var(--meta); }
 .matchnav { display: flex; align-items: center; gap: 2px; flex: none; }
 .matchnav button {
   min-width: 32px; min-height: 32px; padding: 0 8px; text-align: center; font: 400 0.8125rem/1 var(--sans); color: var(--muted);
@@ -611,6 +615,7 @@ mark[data-current] { background: var(--mark-current); }
 }
 .colhead .sort { position: absolute; right: calc(100% + 4px); top: 0; font: 400 0.75rem/1.4 var(--mono); color: var(--ink); }
 .colhead[data-sorted] { color: var(--ink); }
+.colhead > span:first-child { text-decoration: underline; text-decoration-color: var(--hairline-strong); text-underline-offset: 4px; }
 .tip {
   position: absolute; right: 0; top: 100%; z-index: 5; /* flush, so the pointer can cross onto it */
   width: 224px; padding: 10px 12px; text-align: left; white-space: normal;
@@ -726,10 +731,8 @@ mark[data-current] { background: var(--mark-current); }
   /* On a phone the title and file take their own line under Back and the match stepper. */
   .reader header { height: auto; flex-wrap: wrap; row-gap: 0; padding-bottom: 8px; }
   .reader header .where { order: 4; flex: 1 0 100%; margin-top: -2px; }
-  .reader header .file { max-width: 32%; }
   .reader header .where { white-space: normal; align-items: baseline; }
   .reader header .doc-title { overflow: visible; text-overflow: clip; overflow-wrap: anywhere; } /* a long title wraps rather than being cut */
-  .reader header .of-word { display: none; } /* "1 of 5" on a phone: the section title keeps the room */
   .matchnav .count { min-width: 12ch; } /* "Match 30 of 34" still fits beside Back on one row */
   .close { order: 1; }
   .matchnav { order: 3; margin-left: auto; margin-right: 4px; }
@@ -743,6 +746,19 @@ mark[data-current] { background: var(--mark-current); }
 
   .bench { padding-top: 40px; }
   .bench .r { padding-left: 24px; }
+}
+
+/* A phone: each ranking becomes a short list of label and value; the column heads stay above as sort controls. */
+@media (max-width: 479px) {
+  .bench table, .bench tbody, .bench tbody tr, .bench tbody th, .bench td { display: block; min-width: 0; }
+  .bench thead tr { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+  .bench thead th { padding: 12px 0 8px; border: 0; }
+  .bench thead th:first-child { display: none; }
+  .bench thead { display: block; border-bottom: 1px solid var(--hairline); }
+  .bench tbody tr { padding: 12px 0; border-bottom: 1px solid var(--hairline); }
+  .bench tbody th { padding: 0 0 6px; }
+  .bench .r { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; }
+  .bench td::before { content: attr(data-label); font: 400 0.8125rem/1.4 var(--sans); color: var(--muted); }
 }
 
 @media (prefers-reduced-motion: reduce) {
