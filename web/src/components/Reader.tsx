@@ -40,6 +40,8 @@ export function Reader({ hit, mode, was, found, position, onStep, terms, visible
   const currentMark = useRef<HTMLElement | null>(null);
   // Where the J/K scope line renders: inside the matched chunk, which is built once per document.
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  // Lives here, not in the rebuilt passage, so Scores stays open while you step through results.
+  const [scoresOpen, setScoresOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -82,7 +84,7 @@ export function Reader({ hit, mode, was, found, position, onStep, terms, visible
           {first && <div ref={setSlot} />}
           {run}
           {first && (
-            <details className="scores">
+            <details className="scores" open={scoresOpen} onToggle={(e) => setScoresOpen(e.currentTarget.open)}>
               <summary>Scores</summary>
               <Metrics hit={hit} mode={mode} was={was} />
             </details>
@@ -106,7 +108,7 @@ export function Reader({ hit, mode, was, found, position, onStep, terms, visible
     });
     flush();
     return out;
-  }, [source, firstLine, hit, mode, was, found, terms]);
+  }, [source, firstLine, hit, mode, was, found, terms, scoresOpen]);
 
   useEffect(() => {
     if (load.state !== "loading") marked.current?.scrollIntoView({ block: "center" });
@@ -194,9 +196,17 @@ export function Reader({ hit, mode, was, found, position, onStep, terms, visible
               {hit.file_path.split("/").at(-1)}
             </span>
             {position.at >= 0 && (
-              <span className="of num" aria-hidden="true">
-                <span className="of-word">Result </span>
-                {position.at + 1} of {position.of}
+              <span className="of num">
+                <button type="button" onClick={() => onStep(-1)} disabled={position.at === 0} aria-label="Previous result" aria-keyshortcuts="Shift+K">
+                  <span aria-hidden="true">↑</span>
+                </button>
+                <span aria-hidden="true">
+                  <span className="of-word">Result </span>
+                  {position.at + 1} of {position.of}
+                </span>
+                <button type="button" onClick={() => onStep(1)} disabled={position.at === position.of - 1} aria-label="Next result" aria-keyshortcuts="Shift+J">
+                  <span aria-hidden="true">↓</span>
+                </button>
               </span>
             )}
           </p>

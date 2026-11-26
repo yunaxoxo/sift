@@ -257,12 +257,12 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
             </p>
           ) : (
           <div role="radiogroup" aria-labelledby="g-source" className="options options-stack sources" onKeyDown={rovingKeys("[role=radio]")}>
-            <button type="button" role="radio" aria-checked={scope === null} tabIndex={scope === null ? 0 : -1} aria-label={`All files, ${sources.reduce((n, [, c]) => n + c, 0)} passages`} onClick={() => onScope(null)}>
+            <button type="button" role="radio" aria-checked={scope === null} tabIndex={scope === null ? 0 : -1} aria-label={`All files, ${sources.reduce((n, [, c]) => n + c, 0)} passages`} onClick={(e) => { onScope(null); fold(e); }}>
               <span>All files</span>
               <span className="count num">{sources.reduce((n, [, c]) => n + c, 0)}</span>
             </button>
             {visibleSources.map(([path, count]) => (
-              <button key={path} type="button" role="radio" aria-checked={scope === path} tabIndex={scope === path ? 0 : -1} title={path} aria-label={`${label(path, sources)}, ${count} ${count === 1 ? "passage" : "passages"}`} onClick={() => onScope(path)}>
+              <button key={path} type="button" role="radio" aria-checked={scope === path} tabIndex={scope === path ? 0 : -1} title={path} aria-label={`${label(path, sources)}, ${count} ${count === 1 ? "passage" : "passages"}`} onClick={(e) => { onScope(path); fold(e); }}>
                 <span translate="no">{label(path, sources)}</span>
                 <span className="count num">{count}</span>
               </button>

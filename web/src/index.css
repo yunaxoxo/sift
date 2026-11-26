@@ -308,7 +308,7 @@ main:focus-visible { outline: none; }
 .options button[aria-checked="true"] > span:first-child { background-size: 100% 1px; }
 /* Keyboard focus is a heavier rule in the accent: no box around a filter, and never mistaken for "selected". */
 .options button:focus-visible { outline: none; color: var(--ink); }
-.options button:focus-visible > span:first-child { background-image: linear-gradient(var(--forest), var(--forest)); background-size: 100% 2px; }
+.options button:focus-visible > span:first-child { background-image: linear-gradient(var(--forest), var(--forest)); background-size: 100% 3px; }
 .options button:active { transform: scale(0.97); }
 
 .sources { align-items: stretch; gap: 0; }
@@ -376,7 +376,7 @@ main:focus-visible { outline: none; }
 .result[data-active] .title { text-decoration-color: var(--ink); }
 /* Keyboard and pointer state is carried by the rule beside the rank and the underlined title, not by a box. */
 .title:focus, .title:focus-visible { outline: none; }
-.title:focus-visible { text-decoration-color: var(--forest); text-decoration-thickness: 2px; }
+.title:focus-visible { text-decoration-color: var(--forest); text-decoration-thickness: 3px; }
 
 .where { display: flex; flex-wrap: wrap; gap: 0 16px; margin-top: 6px; font: 400 0.75rem/1.5 var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); }
 .path { overflow-wrap: break-word; } /* <wbr> after each "/" is where it breaks; a too-long name still wraps */
@@ -435,7 +435,7 @@ main:focus-visible { outline: none; }
 }
 .prose pre {
   margin-inline: 0; padding: 14px 16px; overflow-x: auto;
-  background: var(--code); border: 1px solid var(--hairline); border-radius: 2px;
+  background: var(--code);
   font: 400 0.8125rem/1.6 var(--mono); font-variant-numeric: tabular-nums; color: var(--ink);
 }
 .prose pre code { padding: 0; background: none; font-size: inherit; line-height: inherit; border-radius: 0; }
@@ -488,17 +488,18 @@ main:focus-visible { outline: none; }
 /* The title takes its full width first; the file name gets what is left, and is cut before the title is. */
 .reader header .where { display: grid; grid-template-columns: minmax(0, max-content) minmax(6ch, 1fr) auto; align-items: baseline; flex: 1 1 0; min-width: 0; gap: 0 12px; margin: 0; white-space: nowrap; }
 .reader header .doc-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 500 1rem/1.3 var(--serif); color: var(--ink); }
-.reader header .of { justify-self: end; padding-left: 12px; font: 400 0.75rem/1.4 var(--mono); color: var(--muted); }
+.reader header .of { justify-self: end; font: 400 0.75rem/1.4 var(--mono); color: var(--muted); }
 .reader header .of-word { display: none; } /* "2 of 5": the section title keeps the room; the live region still says "Result" */
 .reader header .file { overflow: hidden; text-overflow: ellipsis; font: 400 0.75rem/1.4 var(--mono); color: var(--meta); }
 .matchnav { display: flex; align-items: center; gap: 2px; flex: none; }
-.matchnav button {
+:is(.matchnav, .reader header .of) button {
   min-width: 32px; min-height: 32px; padding: 0 8px; text-align: center; font: 400 0.8125rem/1 var(--sans); color: var(--muted);
   transition: color var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
-.matchnav button:active:not(:disabled) { transform: scale(0.97); }
-.matchnav button:disabled { opacity: 0.4; cursor: default; }
-.matchnav .count { min-width: 14ch; /* "Match 30 of 34": the header must not re-wrap as the number grows */ text-align: center; font: 400 0.75rem/1 var(--mono); color: var(--muted); }
+:is(.matchnav, .reader header .of) button:active:not(:disabled) { transform: scale(0.97); }
+:is(.matchnav, .reader header .of) button:disabled { opacity: 0.4; cursor: default; }
+.reader header .of button { display: none; } /* Shift+J / Shift+K on a keyboard; buttons on a phone */
+.matchnav .count { min-width: 12ch; /* "Match 1 of 6" without a shift; a two-digit count grows by 2ch, cutting the file name first */ text-align: center; font: 400 0.75rem/1 var(--mono); color: var(--muted); }
 mark[data-current] { background: var(--mark-current); }
 .close {
   display: inline-flex; align-items: center; gap: 8px; flex: none;
@@ -651,7 +652,7 @@ mark[data-current] { background: var(--mark-current); }
   .samples button:hover { color: var(--ink); text-decoration-color: var(--ink); }
   .colhead:hover, .keyhint:hover, .glossary summary:hover, .options button:hover, .options button:hover .count { color: var(--ink); }
   .colhead:hover .tip { opacity: 1; transform: none; }
-  .views button:hover, .close:hover, .matchnav button:hover:not(:disabled) { color: var(--ink); }
+  .views button:hover, .close:hover, :is(.matchnav, .reader header .of) button:hover:not(:disabled) { color: var(--ink); }
   .clear:hover { color: var(--ink); border-color: var(--muted); }
   .link:hover, .title:hover, .prose a:hover, .glossary summary:hover { text-decoration-color: var(--ink); }
   .result:hover .cue { color: var(--ink); }
@@ -733,10 +734,13 @@ mark[data-current] { background: var(--mark-current); }
   .reader header .where { order: 4; flex: 1 0 100%; margin-top: -2px; }
   .reader header .where { white-space: normal; align-items: baseline; }
   .reader header .doc-title { overflow: visible; text-overflow: clip; overflow-wrap: anywhere; } /* a long title wraps rather than being cut */
-  .matchnav .count { min-width: 12ch; } /* "Match 30 of 34" still fits beside Back on one row */
   .close { order: 1; }
   .matchnav { order: 3; margin-left: auto; margin-right: 4px; }
-  .matchnav button { min-width: 44px; min-height: var(--target); font-size: 1.125rem; text-align: center; }
+  :is(.matchnav, .reader header .of) button { min-width: 44px; min-height: var(--target); font-size: 1.125rem; text-align: center; }
+  /* "↑ Result 2 of 5 ↓" gets its own line under the title, so it never reads as the match count. */
+  .reader header .of { grid-column: 1 / -1; justify-self: start; display: flex; align-items: center; padding-left: 0; margin-left: -12px; }
+  .reader header .of button { display: inline-block; }
+  .reader header .of-word { display: inline; }
   .sources button { min-height: var(--target); }
   .close .wide { display: none; }
   .close .narrow { display: inline; font-size: 0.875rem; color: var(--ink); font-weight: 500; }

@@ -117,13 +117,7 @@ sift rank --name rfc9293.txt --format vimgrep congestion < rfc9293.txt
 
 **`sift mcp`.** A read-only Model Context Protocol server over standard input and output, with two tools:
 `sift_search` (cited hits) and `sift_read_folio` (exact line ranges of an indexed file). Register it with any
-MCP client, for example Claude Code:
-
-```bash
-claude mcp add sift -- sift mcp -c notes
-```
-
-or in a client's JSON configuration:
+MCP client in its JSON configuration:
 
 ```json
 { "mcpServers": { "sift": { "command": "sift", "args": ["mcp", "-c", "notes"] } } }
@@ -163,7 +157,8 @@ JetBrains Mono for measurements, all bundled, so the page makes no network reque
 - **Search.** A query, three ranking modes (Words + meaning, Meaning, Words), how many results to show, a source filter,
   and folded stage timings, beside the result stream. Each result says which of your words it contains and, when it
   is unusual, how it was found.
-- **Reader.** `Enter` opens the whole note with the matched passage set apart and your words highlighted.
+- **Reader.** `Enter` opens the whole note with the matched passage set apart and your words highlighted. On a phone,
+  `↑` `↓` beside "Result 2 of 5" step to the neighbouring results; Scores stays open as you step.
 - **Keys.** `/` focuses the query, `↑` `↓` move through results, `Enter` opens one, `J` `K` step through matches,
   `Shift+J` `Shift+K` step through results, `Esc` leaves the box or closes the note (twice clears the search), and `?`
   opens the shortcuts.

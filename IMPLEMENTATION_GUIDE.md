@@ -681,7 +681,7 @@ output maps back to the input; what the filter does with binary or enormous inpu
 
 ### D.7 `sift mcp`: a read-only tool for local agents (§16)
 
-**Goal.** Any local client that speaks the Model Context Protocol over standard input and output (Claude Code, an
+**Goal.** Any local client that speaks the Model Context Protocol over standard input and output (an agent, an
 editor) can search your index and read exact line ranges, so its answers cite `path:line` from your own notes.
 
 **You should be able to explain**

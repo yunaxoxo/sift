@@ -250,6 +250,8 @@ export function App() {
       if (at < 0 || next < 0 || next >= hits.length) return;
       setReading(hits[next]!);
       setActive(next);
+      // Esc lands on the row you stepped to, not the one you first opened.
+      opener.current = list.current?.querySelectorAll<HTMLElement>("button.title")[next] ?? opener.current;
     },
     [reading, hits],
   );
