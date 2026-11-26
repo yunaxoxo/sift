@@ -1,8 +1,11 @@
 # sift
 
-sift is a local-first hybrid search engine for Markdown notes and codebases: Okapi BM25 lexical retrieval and dense
+**Local-first hybrid search engine and personal knowledge indexer.**
+
+sift indexes your own Markdown notes, technical docs and project repositories, and answers with Okapi BM25 and dense
 embeddings on ONNX Runtime, merged by Reciprocal Rank Fusion over chunks cut by a Rust (PyO3) heading-aware chunker.
-Everything lives in one SQLite file, and nothing leaves the machine.
+It is designed to be used every day from the terminal and the browser and to explain every ranking it makes, and
+nothing leaves the machine.
 
 ```
 index    Markdown corpus ─▶ Rust/PyO3 chunker ─▶ tokens + ONNX embeddings ─▶ SQLite
@@ -27,6 +30,7 @@ The scaffolding is complete and green. Every core algorithm is a stub, written b
 | 3 | `sift/ranking.py`: `cosine_similarity` | §4 |
 | 4 | `sift/ranking.py`: `reciprocal_rank_fusion` | §5 |
 | 5 | `eval/ir_metrics.py`, `sift/telemetry.py`: `percentile` | §6 |
+| D.1 to D.7 | workspace sync, `sift q`, field filters, provenance; Git scope, `sift rank`, `sift mcp` (specified; no stubs yet) | §10 to §16 |
 
 Until the stubs are written, the UI answers from a bundled sample (`sift/ui/preview.json`) and says "Sample data".
 
@@ -55,6 +59,74 @@ sift search "why does TCP halve its window" --explain
 sift stats
 sift ui --open                      # http://127.0.0.1:8765
 python eval/benchmark.py            # add --embedder hash --check for the deterministic CI gate
+```
+
+## Daily driver
+
+Four capabilities, specified in the guide (§10 to §13) and built after the core phases, turn the engine into a tool
+you use on your real notes. None of them uses a language model.
+
+- **Workspaces and live sync.** Named collections (`notes`, `docs`, `projects`) in an XDG store
+  (`~/.local/share/sift/index/`, `~/.cache/sift/embeddings/`), `.gitignore` and `.siftignore` honoured, SHA-256
+  change detection that re-embeds only changed chunks, and `sift watch` that makes a saved edit searchable in about
+  50 ms.
+- **`sift q` in any terminal.** Grep-style exit codes, results on standard output only, `--format human`, `vimgrep`
+  and `jsonl`, answered by a resident process so hybrid queries skip the model load.
+- **Field filters.** `path:os/ lang:rust "borrow checker"`, `tag:`, `heading:`: a deterministic parser narrows the
+  candidates before any scoring, without changing a single score.
+- **Why this ranked.** `sift q page fault --explain` shows which of your words drove each BM25 score and by how
+  much, its cosine, and how fusion moved it: `BM25 #7 + Dense #2 → Hybrid #1`.
+
+## Terminal, Neovim and agent integration
+
+Specified in §11 and §14 to §16, to be built after the daily-driver layer. Every piece is read-only and local.
+
+**fzf.** Pick a hit with a live preview; `enter` opens your editor on the line.
+
+```bash
+sift q --format vimgrep 'path:os/ "page table"' \
+  | fzf --delimiter : --preview 'tail -n +{2} {1} | head -20' --bind 'enter:become($EDITOR +{2} {1})'
+```
+
+**Neovim.** `vimgrep` lines are `path:line:1: [rrf=0.0328] heading — snippet`, the quickfix format:
+
+```vim
+:cexpr system('sift q --format vimgrep tlb shootdown') | copen
+```
+
+**jq.** `jsonl` is one object per hit:
+
+```bash
+sift q --format jsonl borrow checker | jq -r '"\(.path):\(.line)  \(.heading_context)"'
+```
+
+**Git scope.** Search only what you are working on, or what changed recently:
+
+```bash
+sift q auth middleware --git-changed
+sift q retry policy --since 2.weeks.ago
+```
+
+**`sift rank`.** Rank any text from standard input with no index, like a smarter `grep`:
+
+```bash
+git diff | sift rank "auth middleware"
+man tcp | sift rank keepalive
+sift rank --name rfc9293.txt --format vimgrep congestion < rfc9293.txt
+```
+
+**`sift mcp`.** A read-only Model Context Protocol server over standard input and output, with two tools:
+`sift_search` (cited hits) and `sift_read_folio` (exact line ranges of an indexed file). Register it with any
+MCP client, for example Claude Code:
+
+```bash
+claude mcp add sift -- sift mcp -c notes
+```
+
+or in a client's JSON configuration:
+
+```json
+{ "mcpServers": { "sift": { "command": "sift", "args": ["mcp", "-c", "notes"] } } }
 ```
 
 ## Layout

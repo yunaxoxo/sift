@@ -1,3 +1,12 @@
+## Quick Orientation Guide
+
+Read `README.md`, `CLAUDE.md`, `IMPLEMENTATION_GUIDE.md`, and inspect `rust_core/src/lib.rs`, `sift/`, and `eval/`.
+
+Do NOT modify any files or write any backend implementation code. Give me a clear, concise orientation briefing covering:
+1. **What `sift` Is & End-to-End Architecture:** How the Rust/PyO3 Markdown chunker, Okapi BM25 lexical index, local ONNX dense embeddings, Reciprocal Rank Fusion (`k=60`), FastAPI server, and frozen `ui/` reader fit together.
+2. **Current Repo State:** Confirm what is frozen (`ui/` and `sample_docs/`) vs. the exact modules and `todo!()` / `NotImplementedError` stubs in `rust_core/src/lib.rs`, `sift/*.py`, and `eval/benchmark.py` that I need to implement myself.
+3. **My Immediate First Step (Phase 1 — `rust_core/src/lib.rs`):** The exact PyO3 functions and `Chunk` invariants I need to implement first (heading breadcrumbs, atomic fenced code blocks, exact 1-indexed line spans, GIL release), and the exact `maturin develop` / `cargo test` / `pytest` commands to run as I build it by hand.
+
 # sift: Build Curriculum and Implementation Specification
 
 This document has two parts.
@@ -8,7 +17,7 @@ This document has two parts.
   Rust/Python boundary, and how to know the result is good. It asks questions
   and names pitfalls. It contains no solutions: no code and no step-by-step
   algorithm.
-* **Part B, the specification (§1 to §9),** is the contract the stubs and the
+* **Part B, the specification (§1 to §13),** is the contract the stubs and the
   tests cite. It states definitions, input domains, error conditions and
   invariants, and says nothing about how to compute them. Its section numbers
   are referenced from the source tree and are stable.
@@ -29,6 +38,17 @@ quantities are IEEE-754 binary64 unless stated.
 | `rust_core/src/walker.rs: walk_files` | §7 |
 | `rust_core/src/chunker.rs: chunk_document` | §8.1 to §8.6 |
 | `rust_core/src/chunker.rs: chunk_files` | §8.7 |
+| *to add:* `walk_workspace`, sync engine, `sift watch` | §10 |
+| *to add:* `sift q` | §11 |
+| *to add:* query parser and candidate filtering | §12 |
+| *to add:* `bm25_term_contributions`, `explain` payload | §13 |
+| *to add:* `--git-changed`, `--since`, `--git-base` | §14 |
+| *to add:* `sift rank` | §15 |
+| *to add:* `sift mcp` | §16 |
+
+Rows marked *to add* have no stub yet. Add the typed signature first, raising
+`NotImplementedError` or `todo!()` like the others, then the failing tests, then the
+body.
 
 ---
 
@@ -36,7 +56,8 @@ quantities are IEEE-754 binary64 unless stated.
 
 ## A.0 How to use this part
 
-Five phases, in dependency order, then three capstone challenges (complete at least two). Each phase
+Five phases, in dependency order, then seven daily-driver capabilities (D.1 to D.4, then the integrations D.5 to
+D.7) and three capstone challenges (complete at least two). Each phase
 has the same shape: **goal**, **what you should be able to explain**, **data
 structures**, **mathematics**, **trade-offs**, **pitfalls to settle on paper
 first**, **how to verify**, and **done when**. Settle the pitfalls before you
@@ -60,6 +81,13 @@ measured budget. The tests are necessary and not sufficient; the matrix is where
 | 3 Dense | §4.3; unit-length vectors to $10^{-6}$; one embedding per distinct text | padding invariance; cache edit test | `embed_ms` and `vector_ms` within §1.3 |
 | 4 Fusion | §5.3 total order; §5.5 invariance | monotone-transform test; tie matrix | `fusion_ms` negligible beside the scans |
 | 5 Evaluation | §6.2 to §6.6; macro-averaging | hand-computed metrics; hypothesis gates | numbers reproduce from a clean checkout |
+| D.1 Workspace and sync | §10: incremental equals rebuild; no-op sync writes nothing | random edit sequences; `git check-ignore` as oracle | save-to-searchable p50 ≤ 50 ms |
+| D.2 `sift q` | §11: stdout is results only; grep exit codes | golden output per format | lexical cold p95 ≤ 80 ms; resident p95 ≤ 30 ms |
+| D.3 Query filters | §12: parsing is total; filters never change a score | parser table; restriction property | a 1% filter cuts scan time 10× |
+| D.4 Provenance | §13: contributions sum to the score; ranks rebuild the order | additivity on random corpora | explain adds ≤ 1 ms at $K=10$ |
+| D.5 Git scope | §14: read-only; a scope never changes a score | fixture repository with dated commits; option injection | scope resolution ≤ 30 ms on this repository |
+| D.6 `sift rank` | §15: touches no persistent state; equals a one-file collection | binary, empty, oversized, CRLF input | 1 MB of input, lexical, p95 ≤ 150 ms |
+| D.7 `sift mcp` | §16: stdout is protocol only; only indexed files are readable | scripted transcripts; path escapes | ≤ 5 ms over the search it wraps |
 
 ### Where the phases land in this repository
 
@@ -431,7 +459,7 @@ and $50$: a tie, an item in one list only, an item first in both, a duplicate in
 the arguments. In every case the output is the §5.3 total order, and applying any strictly increasing function to
 the scores that produced the lists changes nothing.
 
-**Rank deltas and stage timing.** A per-hit "words rank minus fused rank" is the difference of two integers the
+**Rank deltas and stage timing.** (§13 now specifies the full provenance payload.) A per-hit "words rank minus fused rank" is the difference of two integers the
 backend already holds when it fuses; decide the sign, and what an item absent from one list reports. Gate the five
 stage keys together: every search response carries `embed_ms`, `lexical_ms`, `vector_ms`, `fusion_ms` and `total_ms`
 measured by a monotonic nanosecond clock, no stage is negative, and the stages sum to no more than `total_ms`.
@@ -531,6 +559,154 @@ number in the table, including why one ranker lost somewhere.
 
 ---
 
+## Daily-driver capabilities
+
+Phases 1 to 5 make `sift` correct. These four make it the tool you reach for every day over your own notes,
+documentation and repositories: an index that keeps itself current, a query you can type from any terminal, filters
+that make a large corpus feel small, and an answer to "why is this first?". Build them after Phase 4, in this order;
+each reuses the one before. They are specified in §10 to §13. D.5 to D.7 then wire `sift` into Git, UNIX pipes and
+local agents (§14 to §16). Nothing here uses a language model: every step is deterministic and inspectable.
+
+### D.1 Workspaces, collections and live sync (§10)
+
+**Goal.** Index several real corpora (`notes`, `docs`, `projects`) under one XDG-compliant store, honour the
+exclusion rules you already maintain, and reflect a saved edit in the index before you have switched windows.
+
+**You should be able to explain**
+- why each collection gets its own database and its own corpus statistics, and why that is harmless at query time
+  (RRF fuses ranks, so incomparable BM25 scales across collections never meet);
+- the difference between the three cheap-to-expensive change signals (size and modification time, a content hash,
+  a re-chunk) and when each one lies;
+- why "incremental equals rebuild" is the only correctness statement that matters, and how to test it.
+
+**Decisions to make on paper**
+- *Unit of change.* Today the file is the unit: `sift/indexer.py` hashes a file's chunks and skips unchanged files.
+  The next unit is the chunk, keyed by the hash of its searchable text, so an edit to one section re-embeds one
+  chunk. What identifies "the same chunk" when an edit above it shifts every `start_line`?
+- *Corpus statistics are global within a collection.* Adding or removing a chunk changes $N$, avgdl and some $n(t)$.
+  Which stored quantities do you adjust by delta inside the sync transaction, and which do you derive at query time?
+- *Ignore rules.* `.gitignore` semantics are subtle (negation, anchoring, directory-only patterns, a re-included
+  file inside an excluded directory staying excluded). Prune during the walk, not after it: a `node_modules` you
+  descend into and then discard has already cost you the walk.
+- *Watching.* Editors save by writing a temporary file and renaming it; one save can be four events. OS
+  notifications or polling? How do you coalesce a burst into one sync, and what do you do when the notification
+  queue overflows?
+- *Modification time.* A cheap first filter, never the arbiter. When is it wrong (clock skew, restored backups,
+  edits within one timestamp tick, tools that preserve times)?
+
+**Pitfalls.** A rename must move rows, not re-embed. A deleted ignore rule must index the files it hid. Two
+processes syncing one collection must not interleave. A search during a sync must see the index before or after
+it, never half of it.
+
+**Gate:** §10.8.
+
+### D.2 `sift q`: the terminal interface (§11)
+
+**Goal.** `sift q virtual memory page table` from any directory, answered faster than you can read it, in a format
+that pipes into `fzf`, Neovim's quickfix list or `jq` (`--format vimgrep`, `--format jsonl`) and opens your editor
+on the exact line.
+
+**You should be able to explain**
+- where a cold Python process spends its first 300 ms, and why a lexical query should never pay for importing an
+  inference runtime;
+- why a resident process (one socket, owner-only) fixes cold start without changing a single result;
+- why grep's exit-status convention (0 found, 1 not found) is worth breaking consistency with the other subcommands.
+
+**Decisions to make on paper.** Which line a hit should open on (the chunk's first line, or the first line that
+contains your words?); how a path containing a colon or a newline survives a colon-delimited format; what goes to
+standard output (results only) and what to standard error (everything else); which output is byte-stable, so a
+golden-file test can hold it.
+
+**Gate:** §11.7.
+
+### D.3 Field filters (§12)
+
+**Goal.** `path:os/ lang:rust "borrow checker"` narrows to the right corner of a large corpus before any scoring
+runs, so personal retrieval is surgical rather than noisy.
+
+**You should be able to explain**
+- why filtering happens before scoring, and why it must not change any score that survives it (the corpus
+  statistics stay those of the whole collection);
+- set algebra over chunk ids: posting sets per tag and language, a range scan for path prefixes, and when a dense
+  bitmap beats a sorted list;
+- why the parser must be total: every string a person can type parses to *something*, and a colon in
+  `TODO: fix` or a URL is text, not a syntax error.
+
+**Decisions to make on paper.** Whether a tag belongs to a file or to the section it appears in; how hierarchical
+tags (`area/os`) match; what a query with filters and no words returns (a listing, in a stated order); how
+`lang:` relates a Markdown chunk to the code fences inside it.
+
+**Gate:** §12.8.
+
+### D.4 Ranking provenance (§13)
+
+**Goal.** For every hit, show which of your words drove its BM25 score and by how much, its cosine, its rank in each
+list, and how fusion moved it: `BM25 #7 + Dense #2 → Hybrid #1`.
+
+**You should be able to explain**
+- why BM25 decomposes exactly into per-term contributions and cosine does not decompose into words at all (and why
+  inventing a per-word attribution for a dense score would be dishonest);
+- why the explanation must be computed by the same code as the score, not a parallel re-implementation that can
+  drift;
+- what "absent from a list" means (outside the candidate pool, not a score of zero).
+
+**Decisions to make on paper.** The sign of a rank lift; whether contributions are computed for every candidate or
+only for the hits you return (the cost difference is $O(N)$ against $O(K)$); how a query term that does not occur in
+the chunk is shown.
+
+**Gate:** §13.6.
+
+### D.5 Git-aware scope (§14)
+
+**Goal.** `sift q auth middleware --git-changed` searches only what you are working on: the files changed in your
+working tree and on your branch. `--since "2 weeks ago"` does the same for recent history. Static notes meet active
+code.
+
+**You should be able to explain**
+- why a scope is one more candidate set for §12 and therefore cannot change a score;
+- why shelling out to `git` with machine-readable output beats linking a Git library here, and what `-z` and
+  `GIT_OPTIONAL_LOCKS=0` protect you from;
+- why a string from the user must never reach `git` as an option.
+
+**Decisions to make on paper.** What "my branch" means when there is no upstream; what a rename, a deletion and an
+untracked file contribute; what happens when one collection root is a repository and another is not.
+
+**Gate:** §14.7.
+
+### D.6 `sift rank`: a UNIX filter (§15)
+
+**Goal.** `git diff | sift rank "auth middleware"`, `man tcp | sift rank "keepalive"`, `sift rank "congestion" <
+rfc9293.txt`: rank any text by relevance with no index, so `sift` composes like `grep`.
+
+**You should be able to explain**
+- why BM25's statistics come from the input itself, and why the result then equals searching a one-file collection;
+- why the default mode is lexical (a filter has to start in milliseconds) and what `--mode hybrid` costs;
+- what "touches no persistent state" rules out, including the embedding cache.
+
+**Decisions to make on paper.** Markdown or plain text for a diff, a log or a man page; how a line number in the
+output maps back to the input; what the filter does with binary or enormous input.
+
+**Gate:** §15.6.
+
+### D.7 `sift mcp`: a read-only tool for local agents (§16)
+
+**Goal.** Any local client that speaks the Model Context Protocol over standard input and output (Claude Code, an
+editor) can search your index and read exact line ranges, so its answers cite `path:line` from your own notes.
+
+**You should be able to explain**
+- the stdio transport: JSON-RPC 2.0, one message per line, and why a single stray `print` corrupts the stream;
+- the difference between a protocol error (a JSON-RPC error) and a tool error (a result marked `isError`), and why
+  the second lets the client correct itself;
+- why the server can read only files the index already holds, exactly like `GET /api/document`.
+
+**Decisions to make on paper.** The size of a read (a line range, with a cap); how a hit is cited so the client can
+quote it back; how a collection can be kept out of the server's sight. The budget is about 80 lines of standard
+library Python on top of the existing search and document functions, with no MCP framework.
+
+**Gate:** §16.7.
+
+---
+
 ## Capstone challenges
 
 Complete at least two. Each has an acceptance gate, and a result you cannot reproduce does not count.
@@ -543,28 +719,8 @@ together.
 
 ### E.1 Incremental indexing and a file watcher
 
-**Goal.** Reflect an edit in the index in about the time it takes to re-embed
-the chunks that changed, with no full rebuild.
-- Today's unit of change is the file: `sift/indexer.py` hashes each file's
-  chunks and skips unchanged files. The next unit is the chunk. What is the
-  key that identifies "the same chunk" across an edit?
-- Modification time is a cheap first filter, a content hash is the arbiter.
-  When is mtime wrong (clock skew, restored backups, same-second edits)?
-- Corpus statistics are global. Removing or adding a chunk changes $N$,
-  $\text{avgdl}$ and some $n(t)$; which stored quantities must be adjusted,
-  and which are derived at query time?
-- Editors save by writing a temporary file and renaming it. Polling or
-  OS events? How do you debounce a burst into one update?
-- Searches must see a consistent index while an update is applied. What does
-  the SQLite transaction (and the search lock) guarantee?
-- **Correctness test:** after any sequence of edits, adds and deletes, the
-  incremental index must equal a full rebuild. Generate random sequences and
-  assert it.
-
-**Acceptance gate.** On `sample_docs`, an edit to one note is reflected in both the lexical statistics and the
-vector matrix in under 50 ms (measure the median of at least 20 edits, warm, model already loaded; the re-embedding
-is the cost, so say how many chunks changed). The equality test above passes on at least 200 random edit
-sequences, including a delete followed by a re-add and a rename.
+Promoted to capability D.1 and specified in §10. Its acceptance gate is §10.8 G1 (incremental equals rebuild) and
+G5 (save-to-searchable latency).
 
 ### E.2 Backend match spans for highlighting
 
@@ -673,6 +829,13 @@ Read the original papers, not summaries of them. Each one maps to a phase.
 | `sift.search` | Python | Pipeline orchestration and stage timing. Complete. |
 | `eval/ir_metrics.py`, `sift.telemetry.percentile` | Python | Offline metrics (§6). |
 | `sift.ui.server` | Python | JSON bridge for the browser UI. Falls back to recorded fixture data while any stub above raises. Complete. |
+| workspace registry, sync engine, watcher | Python, Rust walker | Collections, exclusion rules, incremental sync (§10). To add. |
+| `sift q`, resident query process | Python | Terminal interface (§11). To add. |
+| query parser, candidate filter | Python | Field filters before scoring (§12). To add. |
+| provenance | Python | Per-hit explanation of rank (§13). To add. |
+| Git scope | Python, `git` subprocess | Candidates from the working tree and history (§14). To add. |
+| `sift rank` | Python, Rust chunker | Ranks standard input with no index (§15). To add. |
+| `sift mcp` | Python | Read-only MCP server over standard input and output (§16). To add. |
 
 ### 1.2 Invariants of the whole system
 
@@ -706,6 +869,14 @@ failure of correctness. The stage names are those reported by
 | Cosine scan | `vector_ms` | ≤ 3 ms |
 | RRF fusion (candidate pool of 50 per list) | `fusion_ms` | ≤ 0.1 ms |
 | End to end | `total_ms` | p95 ≤ 25 ms |
+| One-note edit, save to searchable (§10.6) | `sync_ms` | p50 ≤ 50 ms, p95 ≤ 100 ms |
+| `sift q`, lexical, cold process (§11.5) | wall clock | p95 ≤ 80 ms |
+| `sift q`, any mode, resident process (§11.5) | wall clock | p95 ≤ 30 ms |
+| Candidate filtering (§12.6) | `filter_ms` | ≤ 2 ms |
+| Provenance for $K=10$ hits (§13.4) | `explain_ms` | ≤ 1 ms |
+| Git scope resolution, this repository (§14.6) | `git_ms` | ≤ 30 ms |
+| `sift rank`, 1 MB of input, lexical (§15.5) | wall clock | p95 ≤ 150 ms |
+| `sift mcp` overhead per call (§16.6) | `mcp_ms` | ≤ 5 ms beyond the search |
 
 Scan stages shall scale at most linearly in the number of chunks $N$.
 
@@ -1220,6 +1391,7 @@ check them, so you shall.
 | §8.2 to §8.6 | `tests/test_rust_contract.py::TestChunkText` |
 | §8.7 | `tests/test_rust_contract.py::TestChunkDirectory` |
 | §8.8 (A1 to A6) | your own tests: the adversarial matrix in Phase 1 (not supplied) |
+| §10 to §16 | your own tests, written before the bodies: the gates in §10.8, §11.7, §12.8, §13.6, §14.7, §15.6 and §16.7 (not supplied) |
 | §2.4 | `tests/test_rust_contract.py::TestPyO3Surface` |
 
 A test whose stub still raises is skipped, not failed; `pytest -ra` lists each
@@ -1235,3 +1407,541 @@ requirements above are the specification.
    results, and `sift ui` reports "Live index" instead of "Sample data".
 4. `python eval/benchmark.py` completes and reports §6.2 to §6.5 values for
    the three ranking modes.
+
+---
+
+## 10. Workspace store, collections and incremental sync
+
+### 10.1 Locations
+
+All paths follow the XDG Base Directory specification; each variable falls back to its default when unset or not
+absolute.
+
+| What | Location | Lifetime |
+|---|---|---|
+| Collection registry | `$XDG_CONFIG_HOME/sift/collections.toml` (default `~/.config/sift/`) | edited by `sift collection` and by hand |
+| One index per collection | `$XDG_DATA_HOME/sift/index/<name>.db` (default `~/.local/share/sift/index/`) | durable |
+| Embedding cache | `$XDG_CACHE_HOME/sift/embeddings/` (default `~/.cache/sift/embeddings/`) | disposable |
+| Writer lock per collection | `$XDG_DATA_HOME/sift/index/<name>.lock` | while a sync runs |
+| Resident query socket | `$XDG_RUNTIME_DIR/sift/sock` (§11.5) | while the process runs |
+
+1. `SIFT_DB`, when set, names a single index and bypasses the registry, so the existing single-index workflow and
+   tests are unchanged.
+2. Directories are created with mode `0700` and files with `0600`: these are private notes.
+3. Deleting the cache directory changes no result, only time.
+
+### 10.2 Collections
+
+A registry entry has: `name`, matching `[a-z0-9][a-z0-9_-]{0,31}` and unique; `roots`, a non-empty list of absolute
+directory paths; `extensions` (default `md`, `markdown`); `ignore_files` (default `.gitignore`, `.siftignore`);
+`max_chars` and `overlap` (§8); `embedder` and `model`.
+
+1. Each collection is an independent index with its own corpus statistics ($N$, avgdl, $n(t)$).
+2. A file reachable from two roots of one collection is indexed once, under its first root in registry order.
+3. Overlapping roots in different collections are allowed; each collection holds its own copy.
+4. Changing a collection's `embedder`, `model`, `max_chars` or `overlap` invalidates its index; the next sync
+   rebuilds it and says so. Vectors from two models are never mixed in one index.
+5. A query over several collections fuses their per-collection ranked lists by RRF (§5); scores from different
+   collections are never compared.
+
+### 10.3 Exclusion rules
+
+A path is a **candidate** iff `walk_files` would select it (§7: W2, W3, W4) and it is not excluded by the rules
+below. Rules are evaluated per directory, deepest last, and the last matching rule wins.
+
+1. **Defaults.** `node_modules/`, `target/`, `dist/`, `build/`, `__pycache__/`, `.venv/` are excluded. A
+   collection may override the list.
+2. **`.gitignore`.** Every `.gitignore` from a root down to the file's directory applies, with git's semantics:
+   blank lines and `#` comments ignored, `!` negates, a trailing `/` matches directories only, a leading or
+   interior `/` anchors the pattern to the file's directory, `*`, `?`, `[...]` and `**` as in git. A file inside
+   an excluded directory cannot be re-included by a negation, exactly as in git. When a root is inside a git work
+   tree, `.git/info/exclude` applies too; the user's global excludes file does not.
+3. **`.siftignore`.** Same syntax, evaluated after `.gitignore` in the same directory, so it can re-include what
+   git ignores (`!drafts/`) or exclude what git tracks.
+4. **Pruning.** An excluded directory is not descended into: nothing below it is read or statted. This shall be a
+   separate walker entry point, `walk_workspace`, so that `walk_files` and its §7 contract and tests are
+   unchanged.
+5. **Oracle.** For any path in a git work tree with no `.siftignore`, "excluded" equals the verdict of
+   `git check-ignore`.
+
+### 10.4 Schema, version 2
+
+Additions to schema version 1 (`sift/db.py`). A version 1 database is never read as version 2: opening one reports
+that a rebuild is needed.
+
+| Table | Column | Type | Meaning |
+|---|---|---|---|
+| `files` | `size` | integer | bytes at last sync |
+| `files` | `mtime_ns` | integer | modification time at last sync, nanoseconds |
+| `files` | `bytes_sha256` | text | SHA-256 of the raw bytes |
+| `files` | `root` | text | the registry root the file was found under |
+| `chunks` | `text_sha256` | text | SHA-256 of the chunk's searchable text (§10.5 item 4) |
+| `chunk_tags` | `tag`, `chunk_id` | text, integer | primary key `(tag, chunk_id)`; one row per tag per chunk (§12.4) |
+| `chunk_langs` | `lang`, `chunk_id` | text, integer | primary key `(lang, chunk_id)` (§12.4) |
+| `chunks` | `heading_fold` | text | Unicode case-folded `heading_context` (§12.3) |
+| `meta` | `collection`, `roots`, `schema_version` | text | the registry entry this index was built from |
+
+Rows of `chunk_tags` and `chunk_langs` are removed with their chunk (`ON DELETE CASCADE`).
+
+### 10.5 Sync
+
+A **sync** brings one collection's index into agreement with its roots.
+
+1. **Change detection.** A file whose `size` and `mtime_ns` both match its row is unchanged and is not read. Any
+   other file is read and hashed; if `bytes_sha256` matches, only `mtime_ns` is updated. `sift index --verify`
+   hashes every file regardless.
+2. **Deletions.** A row whose file no longer exists, or is now excluded (§10.3), is deleted with its chunks.
+3. **Renames.** A new path whose `bytes_sha256` equals that of a path deleted in the same sync takes over its
+   chunks and vectors: nothing is re-chunked or re-embedded.
+4. **Chunk reuse.** A changed file is re-chunked. A chunk whose `text_sha256` occurs among the file's previous
+   chunks, or in the embedding cache, reuses its vector. Only chunks with new searchable text reach the embedder.
+5. **Embedding cache.** Keyed by SHA-256 of the model identifier, pooling, normalisation, maximum sequence length
+   and the searchable text; the value is the vector as little-endian float32 with its dimension. An entry that
+   fails to parse or has the wrong dimension is discarded and recomputed, never used.
+6. **Statistics.** $N$, the token total behind avgdl, and $n(t)$ are updated by delta in the same transaction as
+   the rows they describe.
+7. **Atomicity.** One sync is one SQLite transaction. A concurrent search sees the index before or after it, never
+   in between (WAL snapshot isolation).
+8. **Exclusive writer.** A sync holds the collection's lock file; a second writer waits or exits with a message.
+   Readers never take the lock.
+9. **Idempotence.** A sync with no changes on disk performs no writes.
+10. **Equivalence.** After any sequence of creations, edits, deletions, renames and ignore-rule changes followed by
+    a sync, the index equals a full rebuild of the same roots: the same files, chunks, tokens, vectors, statistics,
+    tags and languages, ignoring row ids and timestamps.
+
+### 10.6 Watch mode
+
+`sift watch [collection ...]` keeps collections synced as files change.
+
+1. It uses the operating system's change notifications and falls back to polling the size and modification time
+   of candidates when they are unavailable.
+2. Events for excluded paths are dropped before anything else. A change to a `.gitignore` or `.siftignore`
+   re-evaluates the directory it governs.
+3. Events are coalesced per path over a quiet period of 25 ms; a burst of saves of one file causes one sync. A
+   temporary file renamed over a candidate is a modification of the candidate.
+4. A lost-events signal (a notification queue overflow) triggers a full change-detection pass (§10.5 item 1) of the
+   collection.
+5. **Save-to-searchable latency** is measured from the final write of a file to the commit of the sync that
+   contains it, quiet period included. For a one-note edit that changes at most three chunks, with the embedder
+   already loaded: p50 ≤ 50 ms and p95 ≤ 100 ms. Report it with the number of re-embedded chunks.
+
+### 10.7 Commands
+
+`sift collection add|list|remove|show`, `sift index [collection ...]` (a sync; `--rebuild` for a full rebuild;
+`--verify` for full hashing), `sift watch [collection ...]`. Every command that takes collections defaults to all
+of them.
+
+### 10.8 Gates
+
+* **G1.** §10.5 item 10 holds on at least 200 random operation sequences over a generated tree, including a rename,
+  a delete followed by re-creation, an ignore rule added and then removed, and an edit within one timestamp tick.
+* **G2.** A second sync with no changes performs zero row writes (count them through SQLite's change counter).
+* **G3.** A rename re-embeds nothing (count embedder calls); an edit to one section re-embeds one chunk.
+* **G4.** On a fixture work tree of at least 30 tricky patterns (negation, anchoring, `**`, directory-only,
+  re-inclusion inside an excluded directory, nested `.gitignore`), exclusion agrees with `git check-ignore` for
+  every path.
+* **G5.** §10.6 item 5, measured over at least 50 edits.
+* **G6.** A sync killed at a random point leaves a database that opens, answers queries from the previous state,
+  and converges on the next sync.
+
+---
+
+## 11. Terminal interface: `sift q`
+
+### 11.1 Synopsis
+
+`sift q [options] <query ...>`. The query words are joined with single spaces, so quoting is needed only for the
+phrases of §12.
+
+| Option | Meaning |
+|---|---|
+| `-n`, `--top N` | number of hits, default 10 |
+| `-c`, `--collection NAME` | repeatable; default: every collection |
+| `--mode hybrid\|lexical\|semantic` | default `hybrid` |
+| `--format human\|vimgrep\|jsonl\|paths` | default `human` |
+| `--explain` | add the §13 provenance to each hit |
+| `--color auto\|always\|never` | default `auto`: colour only on a terminal, and never when `NO_COLOR` is set |
+
+### 11.2 The hit line
+
+Every hit carries a `line`: the first source line of the chunk that contains a whole-word occurrence of a query term
+(the rule of `web/src/lib/text.ts`), and otherwise the chunk's `start_line`. This is the line an editor opens on.
+
+### 11.3 Formats
+
+1. **`human`** (default). Rank, path and line, breadcrumb, snippet; with `--explain`, the §13.5 rendering.
+2. **`vimgrep`.** One hit per line, in the quickfix and grep format that Neovim's `:cexpr`, `vim -q` and
+   `fzf --delimiter :` read:
+
+   `path:line:1: [score] heading — snippet`
+
+   * `path` is relative to the working directory when the file is under it, and absolute otherwise.
+   * `line` is the hit line of §11.2, which is the chunk's `start_line` when no query word occurs in it.
+   * `[score]` names the ranker that ordered the list: `[rrf=0.0328]` (hybrid, 4 decimals), `[bm25=12.33]`
+     (lexical, 2 decimals) or `[cos=0.652]` (semantic, 3 decimals).
+   * `heading` is the last breadcrumb entry, or the file name when there is none.
+   * The snippet is one line of at most 160 characters, newlines and tabs collapsed to single spaces.
+   * A hit whose path contains a newline is omitted, with a warning on standard error. A colon inside a path is
+     left as is: Vim's default `errorformat` and `fzf --delimiter :` take the first two numeric fields.
+3. **`jsonl`.** One JSON object per line, one line per hit, in rank order, for `jq`. Keys, in this order: `rank`,
+   `collection`, `path`, `line`, `start_line`, `end_line`, `heading_context`, `score`, `lexical_rank`,
+   `lexical_score`, `semantic_rank`, `semantic_score`, `snippet`, and with `--explain`, `provenance` (§13). Compact
+   separators; floats in shortest round-trip form; UTF-8, never `\u` escapes for printable characters. Timings go
+   to standard error, so every line is a hit.
+4. **`paths`.** Distinct file paths in the order of their first hit, one per line, for `xargs`.
+
+### 11.4 Streams and exit status
+
+1. Standard output carries results only. Diagnostics, timings and warnings go to standard error.
+2. For a fixed index, query and options, standard output is byte-identical across runs in every format.
+3. Exit status follows grep, deliberately unlike the other subcommands: `0` at least one hit, `1` no hit, `2` an
+   error or bad usage, `3` a stub is not implemented yet. So `sift q x && ...` and `|| ...` compose in the shell.
+
+### 11.5 Cold start and the resident process
+
+1. A lexical query never imports the embedding runtime. Cold process, sample corpus: p95 ≤ 80 ms wall clock.
+2. When a resident process is running (`sift serve`, `sift watch` or `sift ui`), `sift q` sends the query to it over
+   a Unix-domain socket at `$XDG_RUNTIME_DIR/sift/sock`, mode `0600`, never TCP. p95 ≤ 30 ms wall clock, any mode.
+3. With no resident process, a hybrid or semantic query runs in-process and notes the model load on standard error.
+4. **Equivalence.** The resident and in-process paths return identical results for the same index state.
+
+### 11.6 Recipes
+
+The README shows `fzf` with a preview of the hit's lines and `enter` opening the editor on the line, Neovim's
+`:cexpr` and `:copen` on `vimgrep`, and `jq` over `jsonl`. They are shell one-liners and need nothing from `sift`
+beyond §11.3.
+
+### 11.7 Gates
+
+* Golden files for every format on the sample queries, compared byte for byte.
+* Every `vimgrep` line parses with Vim's default `errorformat` (`%f:%l:%c:%m`) to the hit's path and line; every
+  `jsonl` line parses as one JSON object with the keys of §11.3 item 3, in order.
+* Exit status `0`, `1`, `2` and `3`, each provoked by a test.
+* Standard output contains no diagnostic line, whatever is printed to standard error.
+* §11.5 item 4 on every sample query and mode.
+* Cold and resident latency over at least 20 runs, with hardware named.
+
+---
+
+## 12. Query language: field filters
+
+### 12.1 Grammar
+
+```
+query   = { space } [ item { space item } ] { space } ;
+item    = filter | phrase | word ;
+filter  = [ "-" ] field ":" value ;
+field   = "tag" | "path" | "heading" | "lang" ;          (ASCII case-insensitive)
+value   = phrase | bare ;
+phrase  = '"' { any character except '"', or '\"' } '"' ;
+bare    = one or more characters other than space and '"' ;
+word    = one or more characters other than space ;
+```
+
+1. **Totality.** Every string parses. Parsing never raises.
+2. A token whose field is not one of the four, or whose value is empty, is a word: `TODO: fix`,
+   `https://example.org` and `tag:` are text.
+3. An unclosed quote extends to the end of the input.
+4. The **text** of a query is its words and phrases, in order. Only the text reaches the tokenizer and the embedder;
+   filter tokens never do.
+5. The parser is the same for `sift q`, `sift search`, `GET /api/search` and the web UI's query box. It is
+   deterministic and uses no model.
+
+### 12.2 Semantics
+
+A filter selects a set of chunks. Filters of the same field combine by union; different fields combine by
+intersection; a negated filter subtracts its set. The result is the **candidate set** $C$. A query with no filters
+has $C$ equal to every chunk.
+
+### 12.3 Fields
+
+| Field | A chunk matches when |
+|---|---|
+| `path:v` | its file's path relative to its root, with `/` separators, starts with `v`; or, when `v` contains `*`, `?` or `[`, matches `v` as a §10.3 glob |
+| `tag:v` | its file has a tag equal to `v`, or a hierarchical tag beginning `v/`; case-insensitive |
+| `heading:v` | its `heading_fold` contains the Unicode case fold of `v` |
+| `lang:v` | its language set contains `v` after aliases (`rs`→`rust`, `py`→`python`, `js`→`javascript`, `ts`→`typescript`, `sh`→`bash`, `md`→`markdown`) |
+
+### 12.4 Metadata extraction (index time)
+
+1. **Tags are per file** and apply to every chunk of the file. They are the union of the `tags` key of YAML front
+   matter (a list, or a comma-separated string) and inline tags: a `#` at the start of a line or after whitespace,
+   outside fences and outside heading lines, followed by characters from `[A-Za-z0-9_/-]` including at least one
+   letter. Tags are stored case-folded.
+2. **Language set.** A chunk's language set is its file's language (by extension, from a fixed table; `markdown`
+   for Markdown files) plus the first word of the info string of every fence the chunk overlaps.
+3. Both are written to `chunk_tags` and `chunk_langs` (§10.4) in the same transaction as the chunk.
+
+### 12.5 Invariants
+
+* **F1. Filter before scoring.** The lexical and vector stages score only chunks in $C$. No chunk outside $C$ is
+  scored.
+* **F2. Scores are unchanged.** Corpus statistics stay those of the whole collection, so a chunk's BM25 and cosine
+  scores are identical with and without filters. For a single ranker, the filtered ranking equals the unfiltered
+  ranking with every chunk outside $C$ deleted.
+* **F3. Pools come from candidates.** In hybrid mode each ranker's pool is its top `pool_size` chunks of $C$, so a
+  narrow filter does not waste the pool on excluded chunks.
+* **F4. Listing.** A query with filters and no text returns $C$ ordered by path, then `start_line`, with no score.
+* **F5. Nothing matched** is an empty result, never an error.
+
+### 12.6 Candidate computation
+
+Each filter is a set of chunk ids: tag and language from their posting tables, path by a range scan over the sorted
+relative paths, heading by a scan of `heading_fold`. Sets are combined in $O(\sum|S_i|)$ with sorted lists or, above
+a density you measure, a bitmap over chunk ids. Budget: `filter_ms` ≤ 2 ms on the reference corpus.
+
+### 12.7 Storage
+
+`chunk_tags` and `chunk_langs` (§10.4) are posting tables: the primary key `(value, chunk_id)` makes "all chunks
+with tag $t$" one index range. `files.path` is indexed for the path range scan.
+
+### 12.8 Gates
+
+* A parser table of at least 40 inputs, including URLs, `C++`, `TODO:`, an unclosed quote, a negated phrase, mixed
+  case fields, non-ASCII text and an empty string.
+* F2 as a property test: on random corpora and filters, the filtered ranking equals the restricted unfiltered one.
+* F1 by counting scored chunks.
+* On a synthetic collection of at least 10,000 chunks, a filter keeping 1% of them makes `lexical_ms` and
+  `vector_ms` at least ten times smaller than unfiltered.
+
+---
+
+## 13. Ranking provenance
+
+### 13.1 Payload
+
+With `--explain` (CLI) or `explain=1` (`GET /api/search`), each hit carries `provenance`:
+
+| Field | Content |
+|---|---|
+| `lexical.rank`, `lexical.score` | 1-based rank in the lexical pool and the BM25 score; `null` when outside the pool |
+| `lexical.terms` | for every distinct query term: `term`, `tf` $f(t,d)$, `df` $n(t)$, `idf`, `contribution`; ordered by contribution descending, then term |
+| `lexical.length_ratio` | $\lvert d\rvert/\text{avgdl}$ |
+| `semantic.rank`, `semantic.cosine` | 1-based rank in the vector pool and the cosine; `null` when outside the pool |
+| `fusion.k`, `fusion.lexical`, `fusion.semantic` | $k$ and each list's contribution $1/(k+r)$, or $0$ when absent |
+| `fusion.score`, `fusion.rank` | the RRF score and the hybrid rank |
+| `lift.lexical`, `lift.semantic` | $r_{\text{list}} - r_{\text{hybrid}}$: positive means fusion moved the hit up; `null` when absent |
+| `pool_size` | the pool each rank refers to |
+
+### 13.2 The contribution function
+
+`sift/ranking.py` gains a pure function `bm25_term_contributions`, with the arguments of `compute_bm25`, returning
+each distinct query term's share of the score. Its stub raises `NotImplementedError` until written. A query term
+absent from the chunk appears with `tf` $0$ and contribution $0$, so missing words are visible.
+
+### 13.3 Invariants
+
+* **P1. Additivity.** The contributions sum to `compute_bm25` for the same arguments, to within $10^{-12}$ relative.
+  Write one in terms of the other so they cannot drift.
+* **P2. Reconstruction.** `fusion.lexical + fusion.semantic` equals `fusion.score` exactly, and sorting the hits by
+  `fusion.score` descending, then chunk id ascending (§5.3), reproduces the hybrid order.
+* **P3. Absent is not zero.** A `null` rank means outside the pool of `pool_size` candidates (after §12 filters),
+  not a score of zero.
+* **P4. No invented attribution.** The semantic side reports a cosine and a rank. It never attributes a dense score
+  to words.
+* **P5. Additive contract.** Provenance adds fields and renames none. The frozen web UI ignores fields it does not
+  know.
+
+### 13.4 Cost
+
+Provenance is off by default. When on, it is computed only for the $K$ returned hits, from their stored tokens:
+$O(K\cdot\lvert q\rvert)$. Budget: `explain_ms` ≤ 1 ms at $K=10$.
+
+### 13.5 Human rendering
+
+One line per hit, then one line of terms, for example `BM25 #7 + Dense #2 → Hybrid #1 (+6, +1)` and
+`page 2.31 · table 1.87 · walk 0 (absent)`.
+
+### 13.6 Gates
+
+* P1 on random corpora, queries with repeated terms, terms absent from the chunk, and a corpus of one chunk.
+* P2 on every sample query.
+* Golden `--explain` output for the sample queries.
+* A test that fixes the sign of `lift`.
+
+---
+
+## 14. Git-aware scope
+
+### 14.1 Flags
+
+On `sift q` and `sift search`:
+
+| Flag | Meaning |
+|---|---|
+| `--git-changed` | restrict candidates to the working-tree changes and the branch's changes (§14.3) |
+| `--since WHEN` | restrict candidates to files touched by commits after `WHEN` (Git's date syntax, e.g. `2.weeks.ago`, `2026-11-01`), plus working-tree changes |
+| `--git-base REF` | the base for "the branch's changes"; default as in §14.3 item 2 |
+
+`--git-changed` and `--since` together take the union of their sets. The scope is intersected with any §12
+filters, so §12.5 F1 to F5 hold: candidates are restricted before scoring and no score changes.
+
+### 14.2 Repository discovery
+
+For each collection root, the work tree is the one `git rev-parse --show-toplevel` reports from that root. A root
+outside any work tree contributes no candidates and one warning on standard error. If no root of the queried
+collections is in a work tree, the command exits `2` with a message.
+
+### 14.3 Sets
+
+1. **Working tree.** Files that are staged, modified, or untracked and not ignored, from
+   `git status --porcelain=v2 -z --untracked-files=all`.
+2. **Branch.** Files that differ between `HEAD` and the merge base of `HEAD` and the base, where the base is
+   `--git-base`, else the default branch named by `refs/remotes/origin/HEAD`, else `main`, else `master`. When
+   `HEAD` is the base, or no base exists, this set is empty.
+3. **Since.** Files named in commits reachable from `HEAD` whose committer date is after `WHEN`.
+4. Paths from Git are relative to the work tree's top level and NUL-separated (`-z`), so no quoting or
+   newline can corrupt them. They are mapped to indexed paths; a path the index does not hold contributes nothing.
+5. A deleted file contributes nothing. A rename contributes its new path. Submodules are not entered.
+
+### 14.4 Safety
+
+1. **Read-only.** Only `rev-parse`, `status`, `diff`, `log`, `merge-base` and `symbolic-ref` run, each with
+   `GIT_OPTIONAL_LOCKS=0`, so `git status` neither refreshes nor locks the index file. No command writes to the
+   repository or contacts a remote.
+2. **No option injection.** `WHEN` and `REF` are passed only as values of a `--flag=value` argument or after `--`,
+   and a value beginning with `-` is rejected with exit `2`.
+3. Each `git` call has a 2-second timeout; a timeout exits `2` with the command that hung.
+
+### 14.5 Indexing
+
+`sift index --git-changed` limits a sync's change detection (§10.5 item 1) to the working-tree set. It never deletes
+rows for files Git does not mention, so a later full sync is still equivalent to a rebuild (§10.5 item 10).
+
+### 14.6 Cost
+
+`git_ms` ≤ 30 ms on this repository, reported on standard error with the other timings.
+
+### 14.7 Gates
+
+* A fixture repository built by the test with fixed author and committer dates, on a branch two commits ahead of
+  `main`: a staged edit, an unstaged edit, an untracked file, an ignored file, a rename, a deletion, a file changed
+  only on `main`, and a file outside the index. Each lands in or out of the scope exactly as §14.3 says.
+* `--since` on both sides of a commit's date.
+* Read-only: the bytes of `.git/index`, every ref, and the output of `git status` are identical before and after.
+* `--since=-x`, `--git-base=--output=/tmp/x` and a base beginning with `-` exit `2` and run nothing.
+* A scoped ranking equals the unscoped one restricted to the scope (§12.5 F2).
+
+---
+
+## 15. Standard-input ranker: `sift rank`
+
+### 15.1 Synopsis
+
+`<text> | sift rank [options] <query ...>`. It reads standard input to its end and prints the most relevant
+passages.
+
+| Option | Meaning |
+|---|---|
+| `-n`, `--top N` | default 5 |
+| `--mode lexical\|hybrid\|semantic` | default `lexical` |
+| `--name NAME` | the label used as the path in the output, default `<stdin>` |
+| `--markdown` | chunk as Markdown; the default is Markdown when `NAME` ends in `.md`, `.markdown` or `.mdx`, plain otherwise |
+| `--max-chars`, `--overlap` | as `sift index` (§8) |
+| `--max-bytes N` | input cap, default 16 MiB |
+| `--format human\|vimgrep\|jsonl` | as §11.3 |
+
+### 15.2 Semantics
+
+1. The input is decoded as UTF-8 with each invalid sequence replaced by U+FFFD (§8.7 F1) and chunked by
+   `chunk_text` (§8) under `NAME`.
+2. The chunks form an ad-hoc corpus. BM25 uses that corpus's $N$, avgdl and $n(t)$; semantic mode embeds the
+   chunks and the query; hybrid fuses the two by RRF with $k=60$.
+3. Line numbers are 1-based lines of the input. With `--name` set to the file the input came from, `vimgrep`
+   output opens in an editor at the right place.
+4. §12 filters other than `heading:` select nothing on standard input and exit `2` with a message.
+
+### 15.3 Invariants
+
+* **R1. No persistent state.** No index is opened, no file or directory is created or written, and the embedding
+  cache is neither read nor written. The output is a function of the input, the query, the options and the model.
+* **R2. Equivalence.** In lexical mode, `sift rank` over text $T$ named $N$ returns the same chunks, scores and order
+  as a lexical search of a fresh collection holding only $T$ at $N$.
+* **R3. Bounds.** Input larger than `--max-bytes` exits `2` before chunking. A NUL byte in the first 8 KiB exits `2`
+  as binary input. Memory is $O(\lvert T\rvert)$.
+* **R4. Exit status** as §11.4. Empty input is no hit: exit `1`.
+
+### 15.4 Recipes
+
+`git diff | sift rank "auth middleware"`, `man tcp | sift rank keepalive`,
+`sift rank --name rfc9293.txt --format vimgrep congestion < rfc9293.txt`.
+
+### 15.5 Cost
+
+One megabyte of input, lexical: p95 ≤ 150 ms wall clock, process start included. A hybrid run adds the embedding of
+every chunk, and the model load unless a resident process answers (§11.5).
+
+### 15.6 Gates
+
+* R2 on every sample note and three queries each.
+* R1: run with `HOME` and every `XDG_*` variable pointed at an empty read-only directory; the run succeeds and the
+  directory stays empty.
+* Empty, binary, oversized, CRLF and invalid-UTF-8 input, each with the exit status above.
+* Every `vimgrep` line's `line` is a line of the input that contains the hit's first matched word, when there is one.
+
+---
+
+## 16. Local agent interface: `sift mcp`
+
+### 16.1 Transport
+
+`sift mcp [-c NAME ...]` speaks the Model Context Protocol over standard input and output: JSON-RPC 2.0 messages,
+one per line, UTF-8, with no embedded newline.
+
+1. Standard output carries protocol messages only. Logs and diagnostics go to standard error.
+2. Requests are answered in arrival order. End of input exits `0`.
+3. `-c` limits the server to the named collections; by default it sees all of them. `SIFT_DB` is honoured.
+4. The server implements one protocol version, held in a single constant (`2025-06-18` at the time of writing). It
+   answers `initialize` with that version whatever the client asked for, and the client decides whether to proceed.
+5. The budget is about 80 lines of Python on the standard library and the existing search and document functions,
+   with no MCP framework.
+
+### 16.2 Methods
+
+| Method | Response |
+|---|---|
+| `initialize` | `protocolVersion`, `capabilities: {tools: {listChanged: false}}`, `serverInfo: {name: "sift", version}` |
+| `notifications/initialized` | none (a notification) |
+| `ping` | an empty result |
+| `tools/list` | the two tools of §16.3 and §16.4, each with `name`, `description`, `inputSchema` and `outputSchema` |
+| `tools/call` | `content` (one text block) and `structuredContent` matching the tool's `outputSchema` |
+
+### 16.3 Tool `sift_search`
+
+* **Input.** `query`: string of 1 to 500 characters, §12 filters allowed (required); `top_k`: integer 1 to 20,
+  default 5; `mode`: `hybrid`, `lexical` or `semantic`, default `hybrid`; `collection`: string, optional.
+* **Output.** `structuredContent.hits`: for each hit, `rank`, `collection`, `path`, `start_line`, `end_line`, `line`,
+  `heading`, `snippet` (at most 400 characters) and `score`. The text block shows one citation per hit,
+  `path:start_line-end_line` followed by the heading and the snippet, in rank order.
+
+### 16.4 Tool `sift_read_folio`
+
+* **Input.** `path`: a path exactly as `sift_search` returned it (required); `start_line`: integer ≥ 1, default 1;
+  `end_line`: integer ≥ `start_line`, default `start_line + 199`, at most 400 lines after `start_line`.
+* **Output.** `structuredContent`: `path`, `start_line`, `end_line` (clamped to the file), `total_lines`, `text`. The
+  text block prefixes every line with its 1-based number, so a client can cite any line exactly.
+
+### 16.5 Errors and safety
+
+1. A line that is not JSON gets error `-32700` with `id: null`; a message that is not a valid request, including a
+   batch array, gets `-32600`; an unknown method `-32601`; an unknown tool name `-32602`.
+2. Arguments that fail the input schema, a path the index does not hold, and a `start_line` beyond the file are
+   tool errors: a result with `isError: true` and a message naming the field, so the client can correct itself.
+3. A stub that is not implemented yet is a tool error saying which stub, never a crash.
+4. Only files the index already holds are readable, by exact path (the rule of `GET /api/document`): `..`, other
+   absolute paths and symbolic links leading outside are refused, and a file over 1 MB is refused.
+5. Nothing is written and nothing leaves the machine.
+
+### 16.6 Cost
+
+`mcp_ms`, the time spent outside the wrapped search or read, ≤ 5 ms per call.
+
+### 16.7 Gates
+
+* Scripted transcripts fed to standard input and compared with golden responses: the handshake, `tools/list`, a
+  search, a read, and each error of §16.5 item 1.
+* Every line on standard output parses as one JSON-RPC message, under every transcript.
+* Path escapes: `../../etc/passwd`, an absolute path outside the index, a symbolic link out of a root, a 2 MB file;
+  each is a tool error and nothing is read.
+* The citations of a `sift_search` result, passed to `sift_read_folio`, return text that contains each snippet.
+* With the ranking stubs still empty, a search returns a tool error naming the stub.
