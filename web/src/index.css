@@ -574,6 +574,8 @@ mark[data-current] { background: var(--mark-current); }
 .keymap .or { font: 400 0.75rem/1 var(--sans); color: var(--muted); }
 .keymap dd { font: 400 1.0625rem/1.35 var(--serif); color: var(--ink); }
 .keymap .note-in { display: block; margin-top: 2px; font: 400 0.75rem/1.3 var(--sans); color: var(--muted); }
+.keymap h3 { margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.keymap code { font: 400 0.8125rem/1.3 var(--mono); color: var(--ink); }
 
 /* ── Benchmarks ───────────────────────────────────────────────────── */
 

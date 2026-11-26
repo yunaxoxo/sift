@@ -93,7 +93,9 @@ export function Reader({ hit, mode, was, found, position, onStep, terms, visible
       run = [];
     };
     blocks.forEach((block, i) => {
-      const node = <Fragment key={i}>{renderBlock(block, terms, 1)}</Fragment>;
+      // Word forms the analyzer matched (E.2) are marked too, but only in the lines they were found in.
+      const forms = (hit.match_spans ?? []).filter((m) => block.end >= m.start_line && block.start <= m.end_line).map((m) => m.text.toLowerCase());
+      const node = <Fragment key={i}>{renderBlock(block, forms.length ? [...terms, ...forms] : terms, 1)}</Fragment>;
       if (block.end >= hit.start_line && block.start <= hit.end_line) run.push(node);
       else {
         flush();

@@ -149,7 +149,7 @@ parameter), 404, 422 (a `SiftError`) or 500. The TypeScript shapes are in `web/s
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/search?q=&mode=&k=` | `mode` is `hybrid`, `lexical` or `semantic`; `q` is 1 to 500 characters; `k` is 1 to 50 (default 5). `hits`, each with `rank`, `chunk_id`, `file_path`, `start_line`, `end_line`, `heading_context`, `text`, `score`, `lexical_score`, `lexical_rank`, `semantic_score` and `semantic_rank`; `timings_ms`; `source`. |
+| `GET /api/search?q=&mode=&k=` | `mode` is `hybrid`, `lexical` or `semantic`; `q` is 1 to 500 characters; `k` is 1 to 50 (default 5). `hits`, each with `rank`, `chunk_id`, `file_path`, `start_line`, `end_line`, `heading_context`, `text`, `score`, `lexical_score`, `lexical_rank`, `semantic_score` and `semantic_rank`; `timings_ms`; `source`. The UI also sends `explain=1` and `c`, which today's server ignores (guide §13.7). |
 | `GET /api/document?path=` | `{path, text}` for a file the index already knows, at most 1 MB. Nothing else on disk is readable. |
 | `GET /api/benchmark` | `eval/results/latest.json`, or the bundled sample (`source: "preview"`). |
 | `GET /api/status` | `corpus`, `index_run`, `search_source` and `benchmark_source` (`live` or `preview`), `examples`, `rrf_k`, `version`. |
@@ -168,6 +168,10 @@ JetBrains Mono for measurements, all bundled, so the page makes no network reque
   `Shift+J` `Shift+K` step through results, `Esc` leaves the box or closes the note (twice clears the search), and `?`
   opens the shortcuts.
 - **Benchmarks.** Recall@3, MRR, NDCG@5 and p50 / p95 latency per mode.
+- **Ready for the daily-driver backend (guide §13.7).** A Collection choice when the server reports two or more,
+  filter syntax (`path:`, `tag:`, `heading:`, `lang:`) in the `?` sheet, a one-line "why this ranked" under each result
+  when hits carry `provenance`, and highlights for matched word forms when they carry `match_spans`. None appears until
+  the server sends it.
 
 To change it: `cd web && npm run dev` (proxies `/api` to a running `sift ui`), then `npm run build`.
 

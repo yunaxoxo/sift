@@ -27,6 +27,7 @@ function readUrl() {
     k: (KS as number[]).includes(k) ? (k as TopK) : (5 as TopK),
     view: p.get("view") === "bench" ? ("bench" as View) : ("search" as View),
     src: p.get("src"),
+    c: p.get("c"),
   };
 }
 
@@ -42,6 +43,7 @@ export function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [pool, setPool] = useState<SearchResult | null>(null);
   const [scope, setScope] = useState<string | null>(initial.src);
+  const [collection, setCollection] = useState<string | null>(initial.c);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The Words + meaning ranking for the current query: the one fixed baseline every rank shift is measured against.
@@ -94,11 +96,12 @@ export function App() {
     if (mode !== "hybrid") p.set("mode", mode);
     if (k !== 5) p.set("k", String(k));
     if (scope) p.set("src", scope);
+    if (collection) p.set("c", collection);
     if (view === "bench") p.set("view", "bench");
     const qs = p.toString();
     history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     document.title = view === "bench" ? "Benchmarks — sift" : query ? `${query} — sift` : "sift";
-  }, [query, mode, k, view, scope]);
+  }, [query, mode, k, view, scope, collection]);
 
   // A Source filter belongs to the search it was chosen in: a new query starts from all files.
   const lastQuery = useRef(query);
@@ -130,7 +133,7 @@ export function App() {
     const controller = new AbortController();
     setLoading(true);
     api
-      .search(query, mode, POOL, controller.signal)
+      .search(query, mode, POOL, collection, controller.signal)
       .then((res) => {
         setPool(res);
         if (mode === "hybrid" && !res.preview_miss) setBaseline({ query, hits: res.hits });
@@ -143,7 +146,7 @@ export function App() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [query, mode, retry]);
+  }, [query, mode, collection, retry]);
 
   // The pool, scoped to one note if asked, cut to Show, and renumbered from 01.
   const scopedHits = useMemo(() => (pool && !pool.preview_miss ? pool.hits.filter((h) => !scope || h.file_path === scope) : []), [pool, scope]);
@@ -172,11 +175,14 @@ export function App() {
     if (!query || mode === "hybrid" || baseline?.query === query) return;
     const controller = new AbortController();
     api
-      .search(query, "hybrid", POOL, controller.signal)
+      .search(query, "hybrid", POOL, collection, controller.signal)
       .then((res) => !res.preview_miss && setBaseline({ query, hits: res.hits }))
       .catch(() => {});
     return () => controller.abort();
-  }, [query, mode, baseline?.query]);
+  }, [query, mode, collection, baseline?.query]);
+
+  // A baseline from another collection measures nothing: drop it, and let the next search rebuild it.
+  useEffect(() => setBaseline(null), [collection]);
 
   // Ranked within the same Source scope as the list, so a scoped list compares like with like.
   const baselineRanks = useMemo(() => {
@@ -379,6 +385,9 @@ export function App() {
               sources={sources}
               scope={scope}
               onScope={pickScope}
+              collections={status?.collections ?? []}
+              collection={collection}
+              onCollection={setCollection}
               miss={searchSource === "fixture" && (!query || !!pool?.preview_miss)}
               onClear={clear}
               timings={result?.timings_ms ?? null}

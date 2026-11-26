@@ -4,9 +4,12 @@ const STOP = new Set(
   "a an the and or of to in on at for with is are was were be been it its this that these those as by from how what when why which who do does did not no vs can into than then so if".split(" "),
 );
 
+/** A §12.1 filter token (`path:os/`, `-tag:"to do"`): it narrows the candidates and is never a word to highlight. */
+const FILTER = /(?<!\S)-?(?:tag|path|heading|lang):(?:"(?:[^"\\]|\\.)*"?|[^\s"]+)/giu;
+
 export function queryTerms(query: string): string[] {
   // Hyphenated words stay whole ("B-tree", "0-RTT"): split, "b" would be dropped and "tree" would stand alone.
-  const words = query.toLowerCase().match(/[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu) ?? [];
+  const words = query.replace(FILTER, " ").toLowerCase().match(/[\p{L}\p{N}_]+(?:-[\p{L}\p{N}_]+)*/gu) ?? [];
   return [...new Set(words.filter((w) => w.length > 1 && !STOP.has(w)))];
 }
 

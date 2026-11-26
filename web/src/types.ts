@@ -21,6 +21,34 @@ export interface Status {
   corpus: Corpus;
   index_run: IndexRun;
   examples: string[];
+  /** Collection names from the registry (§10.2); absent until the workspace store exists. */
+  collections?: string[];
+}
+
+/** One query term's share of the BM25 score (§13.1). */
+export interface TermContribution {
+  term: string;
+  tf: number;
+  df: number;
+  idf: number;
+  contribution: number;
+}
+
+/** Why a hit ranked where it did: the §13.1 payload, sent with `explain=1`. */
+export interface Provenance {
+  lexical: { rank: number | null; score: number | null; terms: TermContribution[]; length_ratio: number };
+  semantic: { rank: number | null; cosine: number | null };
+  fusion: { k: number; lexical: number; semantic: number; score: number; rank: number };
+  /** List rank minus hybrid rank: positive means fusion moved the hit up; null when absent from that list. */
+  lift: { lexical: number | null; semantic: number | null };
+  pool_size: number;
+}
+
+/** A word form the analyzer matched (E.2): "page" for the query "paging". Lines are 1-based and inclusive. */
+export interface MatchSpan {
+  start_line: number;
+  end_line: number;
+  text: string;
 }
 
 export interface Hit {
@@ -37,6 +65,9 @@ export interface Hit {
   /** Rank in that ranker's own list; null when it did not return the chunk or did not run. */
   lexical_rank: number | null;
   semantic_rank: number | null;
+  collection?: string;
+  provenance?: Provenance;
+  match_spans?: MatchSpan[];
 }
 
 export interface SearchResult {

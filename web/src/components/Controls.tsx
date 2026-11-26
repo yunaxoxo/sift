@@ -44,6 +44,10 @@ interface Props {
   sources: [string, number][];
   scope: string | null;
   onScope: (path: string | null) => void;
+  /** Collections the server reports (§10.2); the choice appears only when there are two or more. */
+  collections: string[];
+  collection: string | null;
+  onCollection: (name: string | null) => void;
   onClear: () => void;
   timings: Record<string, number> | null;
   indexRun: IndexRun | null;
@@ -55,7 +59,7 @@ interface Props {
   miss: boolean;
 }
 
-export function Controls({ text, inputRef, onText, onSubmit, query, examples, onExample, mode, onMode, k, onK, sources, scope, onScope, onClear, timings, indexRun, fixture, hasResults, miss }: Props) {
+export function Controls({ text, inputRef, onText, onSubmit, query, examples, onExample, mode, onMode, k, onK, sources, scope, onScope, collections, collection, onCollection, onClear, timings, indexRun, fixture, hasResults, miss }: Props) {
   // Per-query stages only. A stage that did not run in this mode shows "—", not a measured zero.
   const stages: { label: string; value: number | null | undefined }[] = [
     { label: "Whole search", value: timings?.total_ms },
@@ -197,6 +201,19 @@ export function Controls({ text, inputRef, onText, onSubmit, query, examples, on
 
       <div id="filters-panel" className="panel" data-open={open}>
       {(!fixture || hasResults) && samples}
+
+      {collections.length > 1 && (
+        <section className="group" aria-labelledby="g-collection">
+          <h2 id="g-collection">Collection</h2>
+          <div role="radiogroup" aria-labelledby="g-collection" className="options options-stack" onKeyDown={rovingKeys("[role=radio]")}>
+            {[null, ...collections].map((name) => (
+              <button key={name ?? ""} type="button" role="radio" aria-checked={collection === name} tabIndex={collection === name ? 0 : -1} onClick={() => onCollection(name)}>
+                <span translate={name ? "no" : undefined}>{name ?? "All collections"}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="group" aria-labelledby="g-mode">
         <h2 id="g-mode">Ranking</h2>

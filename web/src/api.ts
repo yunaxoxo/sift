@@ -43,9 +43,10 @@ async function withFallback<T>(live: () => Promise<T>, fixture: () => Promise<T>
 export const api = {
   status: () => withFallback(() => getJson<Status>("api/status"), fallbackStatus),
 
-  search: (query: string, mode: Mode, k: number, signal?: AbortSignal) =>
+  // `explain=1` asks for §13 provenance; `c` limits the search to one collection (§10). Today's server ignores both.
+  search: (query: string, mode: Mode, k: number, collection: string | null, signal?: AbortSignal) =>
     withFallback(
-      () => getJson<SearchResult>(`api/search?${new URLSearchParams({ q: query, mode, k: String(k) })}`, signal),
+      () => getJson<SearchResult>(`api/search?${new URLSearchParams({ q: query, mode, k: String(k), explain: "1", ...(collection ? { c: collection } : {}) })}`, signal),
       () => fallbackSearch(query, mode, k),
     ),
 

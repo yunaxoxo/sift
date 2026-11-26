@@ -726,7 +726,8 @@ UI can highlight morphological matches (a query for "paging" marking "page" and
   and convert at the boundary. What breaks for an emoji or a combining mark?
 - Overlapping and adjacent spans must merge into one highlight.
 - Decide the response field, its unit, and what happens in semantic mode where
-  no term matched (a ranking reason is not a highlight).
+  no term matched (a ranking reason is not a highlight). The UI already reads
+  `match_spans` by line and word form (§13.7); offsets within a line are yours.
 
 **Acceptance gate.** Spans round-trip: slicing the returned text at every span in the unit you chose yields exactly
 the matched word forms. A query for "paging" marks "page" and "pages" in a chunk that contains them; a chunk with an
@@ -1750,6 +1751,27 @@ One line per hit, then one line of terms, for example `BM25 #7 + Dense #2 → Hy
 * P2 on every sample query.
 * Golden `--explain` output for the sample queries.
 * A test that fixes the sign of `lift`.
+
+### 13.7 What the web UI reads
+
+The reader UI already accepts the fields this section and its neighbours specify; `web/src/types.ts` holds the
+shapes. Each is optional, and the UI behaves as it does today when one is absent. A field must never be sent with
+placeholder values: when it cannot be computed, leave it out.
+
+| Field | Where | UI behaviour |
+|---|---|---|
+| `explain=1`, `c=<name>` | `GET /api/search` parameters; the UI always sends `explain=1`, and sends `c` when a collection is chosen | today's server ignores both |
+| `collections` | `GET /api/status`: the registry names of §10.2 | a Collection choice in Options, shown only for two or more |
+| `collection` | each hit | carried; not yet displayed |
+| `provenance` | each hit, exactly the §13.1 payload | one muted line under the row's location, the §13.5 rendering joined by `·` |
+| `match_spans` | each hit: `start_line`, `end_line` (1-based, inclusive) and `text`, the matched word form (E.2) | marked like a query word, but only inside those lines |
+
+1. The provenance line names a fused rank only when it equals the number the row shows. A Source filter renumbers
+   the rows, and the line must stay true of what is on screen.
+2. Filter tokens (§12.1) are never highlighted. The UI removes them before choosing words to mark, by the grammar of
+   §12.1, so `path:os/ tlb` marks only `tlb`.
+3. Which unit `match_spans` uses inside a line is yours to choose in E.2. The UI matches `text` as a whole word in
+   the given lines, so a span whose `text` is not literally present in them marks nothing.
 
 ---
 

@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, type RefObject } from "react";
 import { fmtBm25, fmtInt, fmtRrf, fmtSemantic, lineSpan, MODE_LABEL, pad2 } from "../lib/format";
 import { markClass, phraseIn, proseOf, sectionOf, snippet, splitMatches, termsIn } from "../lib/text";
-import type { Hit, Mode, SearchResult } from "../types";
+import type { Hit, Mode, Provenance, SearchResult } from "../types";
 
 interface Props {
   result: SearchResult | null;
@@ -95,6 +95,19 @@ export function evidence(hit: Hit, terms: string[], mode: Mode, query: string, s
         ? "found by meaning"
         : null;
   return [words, distinct, origin].filter(Boolean).join(" · ") || null;
+}
+
+/**
+ * §13.5 in one line: each ranker's position, where fusion put it and by how much it moved, then each word's
+ * share of the BM25 score. The fused rank is said only when it is the number the row shows: a Source
+ * filter renumbers the rows, and the line must stay true of what is on screen.
+ */
+export function why(p: Provenance, mode: Mode, shown: number): string {
+  const lists = [p.lexical.rank != null && `BM25 #${p.lexical.rank}`, p.semantic.rank != null && `Dense #${p.semantic.rank}`].filter(Boolean).join(" + ");
+  const lifts = [p.lift.lexical, p.lift.semantic].flatMap((n) => (n == null ? [] : [n > 0 ? `+${n}` : String(n)])).join(", ");
+  const fused = mode === "hybrid" && p.fusion.rank === shown ? ` → Hybrid #${p.fusion.rank}${lifts ? ` (${lifts})` : ""}` : "";
+  const terms = p.lexical.terms.map((t) => (t.tf ? `${t.term} ${fmtBm25(t.contribution)}` : `${t.term} 0 (absent)`));
+  return [lists + fused, ...terms].filter(Boolean).join(" · ");
 }
 
 /** The engine's own numbers: kept for the reader, out of the result list. */
@@ -343,6 +356,7 @@ export function Results({ result, query, loading, error, terms, activeIndex, onA
                   )}
                   <span>{lineSpan(hit.start_line, hit.end_line)}</span>
                 </p>
+                {hit.provenance && <p className="where">{why(hit.provenance, result.mode, hit.rank)}</p>}
                 <Excerpt hit={hit} terms={terms} />
               </div>
             </li>

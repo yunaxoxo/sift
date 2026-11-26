@@ -20,6 +20,15 @@ const ROWS: Row[] = [
   { keys: ["?"], text: "Toggle this reference" },
 ];
 
+// §12.1 filters, typed in the search box: they narrow which passages are ranked and never change a score.
+const FILTERS: [string, string][] = [
+  ["path:os/", "Only files whose path starts with this"],
+  ["tag:ml", "Only notes with this tag"],
+  ["heading:tlb", "Only passages whose headings contain this"],
+  ["lang:rust", "Only files in this language, or passages with a code block in it"],
+  ["-path:old/", "Leave these out; any filter takes a minus"],
+];
+
 interface Props {
   /** False while the sheet is fading out. */
   visible: boolean;
@@ -67,6 +76,17 @@ export function Keymap({ visible, onClose }: Props) {
               {row.text}
               {row.note && <span className="note-in">{row.note}</span>}
             </dd>
+          </div>
+        ))}
+      </dl>
+      <h3 className="group-title">Search filters</h3>
+      <dl>
+        {FILTERS.map(([token, text]) => (
+          <div key={token}>
+            <dt>
+              <code translate="no">{token}</code>
+            </dt>
+            <dd>{text}</dd>
           </div>
         ))}
       </dl>
